@@ -202,6 +202,7 @@ func (s *AggregatorService) Search(ctx context.Context, req *models.SearchReques
 		},
 		Metadata: models.Metadata{
 			TotalResults:       len(allFlights),
+			TotalLegs:          len(legs),
 			ProvidersQueried:   len(s.providers),
 			ProvidersSucceeded: successful,
 			ProvidersFailed:    failed,

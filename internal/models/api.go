@@ -97,6 +97,21 @@ func (r *SearchRequest) GetLegs() ([]SearchLeg, error) {
 		})
 	}
 
+	// 3. Optional: Add Circuit Return for Multi-City if ReturnDate is provided
+	if r.ReturnDate != "" {
+		// Basic chronolgical validation
+		lastLeg := legs[len(legs)-1]
+		if r.ReturnDate < lastLeg.DepartureDate {
+			return nil, fmt.Errorf("returnDate (%s) cannot be before last departureDate (%s)", r.ReturnDate, lastLeg.DepartureDate)
+		}
+
+		legs = append(legs, SearchLeg{
+			Origin:        r.Destination[lenD-1],
+			Destination:   r.Origin[0],
+			DepartureDate: r.ReturnDate,
+		})
+	}
+
 	return legs, nil
 }
 
@@ -118,6 +133,7 @@ type SearchCriteria struct {
 
 type Metadata struct {
 	TotalResults       int   `json:"total_results"`
+	TotalLegs          int   `json:"total_legs"`
 	ProvidersQueried   int   `json:"providers_queried"`
 	ProvidersSucceeded int   `json:"providers_succeeded"`
 	ProvidersFailed    int   `json:"providers_failed"`
