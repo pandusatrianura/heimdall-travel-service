@@ -75,6 +75,14 @@ func (h *SearchHandler) HandleSearch(w http.ResponseWriter, r *http.Request) {
 		req.Airlines = strings.Split(airlines, ",")
 	}
 
+	if _, err := req.GetTripItems(); err != nil {
+		slog.WarnContext(ctx, "Validation failed: invalid positional request", "error", err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
 	slog.InfoContext(ctx, "Dispatching to Aggregator Service")
 	// Fetch from service
 	resp, err := h.aggregator.Search(ctx, &req)

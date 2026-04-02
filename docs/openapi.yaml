@@ -1,0 +1,617 @@
+openapi: 3.1.0
+info:
+  title: Heimdall Travel Service API
+  version: 1.0.0
+  description: |
+    Formal API contract for Heimdall Travel Service.
+
+    The search endpoint accepts positional trip-item requests:
+    - `origins[i]`, `destinations[i]`, `departureDate[i]`, and optional `returnDate[i]` belong to the same trip item.
+    - Single-value requests may still use scalar strings.
+    - `returnDate` may be `null`, omitted, an empty string, or an array containing `null` entries to represent one-way trip items.
+
+    Responses always return one flat `flights[]` list.
+    - For single-trip searches, `search_criteria.origin`, `destination`, and `departure_date` are serialized as scalar strings.
+    - For positional multi-trip searches, those same fields are serialized as arrays to preserve index-based mapping.
+servers:
+  - url: http://localhost:8008
+    description: Local development server
+tags:
+  - name: Search
+    description: Flight aggregation with positional multi-trip request handling
+paths:
+  /api/v1/search:
+    post:
+      tags:
+        - Search
+      summary: Search one-way, round-trip, or positional multi-trip flights
+      description: |
+        Searches flights across all configured providers.
+
+        Request semantics:
+        - One-way: send one trip item and omit or null `returnDate`
+        - Round-trip: send one trip item with a non-empty `returnDate`
+        - Multi-trip: send arrays of equal length where each index represents one independent trip item
+      parameters:
+        - in: query
+          name: sort_by
+          schema:
+            type: string
+            enum:
+              - best_value
+              - price_lowest
+              - duration_shortest
+              - departure_earliest
+          description: Applies sorting to the flat `flights` list.
+        - in: query
+          name: min_price
+          schema:
+            type: integer
+            minimum: 0
+          description: Minimum allowed price in IDR.
+        - in: query
+          name: max_price
+          schema:
+            type: integer
+            minimum: 0
+          description: Maximum allowed price in IDR.
+        - in: query
+          name: max_stops
+          schema:
+            type: integer
+            minimum: 0
+          description: Maximum allowed number of stops.
+        - in: query
+          name: max_duration
+          schema:
+            type: integer
+            minimum: 0
+          description: Maximum duration in minutes.
+        - in: query
+          name: airlines
+          schema:
+            type: string
+          description: Comma-separated airline names, codes, or provider identifiers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+            examples:
+              oneWay:
+                summary: One-way request
+                value:
+                  origins: CGK
+                  destinations: DPS
+                  departureDate: '2025-12-15'
+                  returnDate: null
+                  passengers: 1
+                  cabinClass: economy
+              roundTrip:
+                summary: Round-trip request
+                value:
+                  origins: CGK
+                  destinations: DPS
+                  departureDate: '2025-12-15'
+                  returnDate: '2025-12-18'
+                  passengers: 1
+                  cabinClass: economy
+              multiTrip:
+                summary: Positional multi-trip request
+                value:
+                  origins:
+                    - CGK
+                    - SUB
+                  destinations:
+                    - DPS
+                    - SIN
+                  departureDate:
+                    - '2025-12-15'
+                    - '2025-12-20'
+                  returnDate:
+                    - null
+                    - '2025-12-26'
+                  passengers: 1
+                  cabinClass: economy
+      responses:
+        '200':
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+              examples:
+                oneWay:
+                  summary: One-way flat response
+                  value:
+                    search_criteria:
+                      origin: CGK
+                      destination: DPS
+                      departure_date: '2025-12-15'
+                      passengers: 1
+                      cabin_class: economy
+                    metadata:
+                      total_results: 1
+                      providers_queried: 4
+                      providers_succeeded: 4
+                      providers_failed: 0
+                      search_time_ms: 150
+                      cache_hit: false
+                    flights:
+                      - id: garuda-outbound-1
+                        provider: Garuda Indonesia
+                        airline:
+                          name: Garuda Indonesia
+                          code: GA
+                        flight_number: GA-400
+                        departure:
+                          airport: CGK
+                          city: Jakarta
+                          datetime: '2025-12-15T09:00:00+07:00'
+                          timestamp: 1765764000
+                        arrival:
+                          airport: DPS
+                          city: Denpasar
+                          datetime: '2025-12-15T11:50:00+08:00'
+                          timestamp: 1765770600
+                        duration:
+                          total_minutes: 110
+                          formatted: 1h 50m
+                        stops: 0
+                        price:
+                          amount: 1800000
+                          formatted_amount: Rp 1.800.000
+                          currency: IDR
+                        available_seats: 6
+                        cabin_class: economy
+                        aircraft: Boeing 737-800
+                        amenities:
+                          - meal
+                          - entertainment
+                        baggage:
+                          carry_on: 7kg
+                          checked: 20kg
+                multiTrip:
+                  summary: Mixed one-way and round-trip flat response
+                  value:
+                    search_criteria:
+                      origin:
+                        - CGK
+                        - SUB
+                      destination:
+                        - DPS
+                        - SIN
+                      departure_date:
+                        - '2025-12-15'
+                        - '2025-12-20'
+                      return_date:
+                        - null
+                        - '2025-12-26'
+                      passengers: 1
+                      cabin_class: economy
+                    metadata:
+                      total_results: 3
+                      providers_queried: 4
+                      providers_succeeded: 4
+                      providers_failed: 0
+                      search_time_ms: 190
+                      cache_hit: false
+                    flights:
+                      - id: trip0-outbound-1
+                        provider: Garuda Indonesia
+                        airline:
+                          name: Garuda Indonesia
+                          code: GA
+                        flight_number: GA-401
+                        departure:
+                          airport: CGK
+                          city: Jakarta
+                          datetime: '2025-12-15T07:00:00+07:00'
+                          timestamp: 1765756800
+                        arrival:
+                          airport: DPS
+                          city: Denpasar
+                          datetime: '2025-12-15T09:50:00+08:00'
+                          timestamp: 1765763400
+                        duration:
+                          total_minutes: 110
+                          formatted: 1h 50m
+                        stops: 0
+                        price:
+                          amount: 1750000
+                          formatted_amount: Rp 1.750.000
+                          currency: IDR
+                        available_seats: 5
+                        cabin_class: economy
+                        aircraft: Airbus A320
+                        amenities:
+                          - meal
+                        baggage:
+                          carry_on: 7kg
+                          checked: 20kg
+                      - id: trip1-outbound-1
+                        provider: Lion Air
+                        airline:
+                          name: Lion Air
+                          code: JT
+                        flight_number: JT-201
+                        departure:
+                          airport: SUB
+                          city: Surabaya
+                          datetime: '2025-12-20T08:00:00+07:00'
+                          timestamp: 1766182800
+                        arrival:
+                          airport: SIN
+                          city: Singapore
+                          datetime: '2025-12-20T11:20:00+08:00'
+                          timestamp: 1766190000
+                        duration:
+                          total_minutes: 140
+                          formatted: 2h 20m
+                        stops: 0
+                        price:
+                          amount: 2100000
+                          formatted_amount: Rp 2.100.000
+                          currency: IDR
+                        available_seats: 4
+                        cabin_class: economy
+                        aircraft: Boeing 737-900ER
+                        amenities:
+                          - baggage
+                        baggage:
+                          carry_on: 7kg
+                          checked: 20kg
+                      - id: trip1-inbound-1
+                        provider: Lion Air
+                        airline:
+                          name: Lion Air
+                          code: JT
+                        flight_number: JT-202
+                        departure:
+                          airport: SIN
+                          city: Singapore
+                          datetime: '2025-12-26T12:00:00+08:00'
+                          timestamp: 1766721600
+                        arrival:
+                          airport: SUB
+                          city: Surabaya
+                          datetime: '2025-12-26T13:20:00+07:00'
+                          timestamp: 1766722800
+                        duration:
+                          total_minutes: 140
+                          formatted: 2h 20m
+                        stops: 0
+                        price:
+                          amount: 2150000
+                          formatted_amount: Rp 2.150.000
+                          currency: IDR
+                        available_seats: 4
+                        cabin_class: economy
+                        aircraft: Boeing 737-900ER
+                        amenities:
+                          - baggage
+                        baggage:
+                          carry_on: 7kg
+                          checked: 20kg
+        '400':
+          description: Invalid request payload or positional validation failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                mismatchedArrays:
+                  summary: Positional array length mismatch
+                  value:
+                    error: origins, destinations, and departureDate must have the same number of items
+                identityRoute:
+                  summary: Invalid identity route
+                  value:
+                    error: origin and destination cannot be the same for trip item 0
+                chronology:
+                  summary: Return date earlier than departure date
+                  value:
+                    error: returnDate cannot be earlier than departureDate for trip item 0
+        '500':
+          description: Unexpected internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  schemas:
+    SearchRequest:
+      type: object
+      properties:
+        origin:
+          $ref: '#/components/schemas/FlexStringInput'
+          description: Legacy alias for `origins`. Preferred only for single-trip compatibility.
+        origins:
+          $ref: '#/components/schemas/FlexStringInput'
+          description: Preferred input for one-way, round-trip, and multi-trip requests.
+        destination:
+          $ref: '#/components/schemas/FlexStringInput'
+          description: Legacy alias for `destinations`.
+        destinations:
+          $ref: '#/components/schemas/FlexStringInput'
+          description: Preferred destination input.
+        departureDate:
+          $ref: '#/components/schemas/FlexDateInput'
+        returnDate:
+          $ref: '#/components/schemas/NullableDateInput'
+        passengers:
+          type: integer
+          minimum: 0
+          default: 1
+        cabinClass:
+          type: string
+          examples:
+            - economy
+        sort_by:
+          type: string
+          description: Accepted in body for compatibility, but the current handler reads filtering and sorting from query parameters.
+        min_price:
+          type: integer
+          minimum: 0
+        max_price:
+          type: integer
+          minimum: 0
+        max_stops:
+          type: integer
+          minimum: 0
+        airlines:
+          type: array
+          items:
+            type: string
+        max_duration:
+          type: integer
+          minimum: 0
+      anyOf:
+        - required:
+            - origin
+            - destination
+            - departureDate
+        - required:
+            - origins
+            - destinations
+            - departureDate
+    FlexStringInput:
+      oneOf:
+        - type: string
+        - type: array
+          items:
+            type: string
+      examples:
+        - CGK
+        -
+          - CGK
+          - SUB
+    FlexDateInput:
+      oneOf:
+        - type: string
+          format: date
+        - type: array
+          items:
+            type: string
+            format: date
+      examples:
+        - '2025-12-15'
+        -
+          - '2025-12-15'
+          - '2025-12-20'
+    NullableDateInput:
+      oneOf:
+        - type: 'null'
+        - type: string
+          format: date
+        - type: array
+          items:
+            oneOf:
+              - type: 'null'
+              - type: string
+                format: date
+      examples:
+        - null
+        - '2025-12-18'
+        -
+          - null
+          - '2025-12-26'
+    SearchResponse:
+      type: object
+      required:
+        - search_criteria
+        - metadata
+        - flights
+      properties:
+        search_criteria:
+          $ref: '#/components/schemas/SearchCriteria'
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+        flights:
+          type: array
+          items:
+            $ref: '#/components/schemas/Flight'
+    SearchCriteria:
+      type: object
+      required:
+        - origin
+        - destination
+        - departure_date
+        - passengers
+        - cabin_class
+      properties:
+        origin:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        destination:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        departure_date:
+          oneOf:
+            - type: string
+              format: date
+            - type: array
+              items:
+                type: string
+                format: date
+        return_date:
+          oneOf:
+            - type: 'null'
+            - type: string
+              format: date
+            - type: array
+              items:
+                oneOf:
+                  - type: 'null'
+                  - type: string
+                    format: date
+          description: Included only when the request carries return dates. Mixed multi-trip requests may include null entries for one-way items.
+        passengers:
+          type: integer
+        cabin_class:
+          type: string
+    Metadata:
+      type: object
+      required:
+        - total_results
+        - providers_queried
+        - providers_succeeded
+        - providers_failed
+        - search_time_ms
+        - cache_hit
+      properties:
+        total_results:
+          type: integer
+        providers_queried:
+          type: integer
+        providers_succeeded:
+          type: integer
+        providers_failed:
+          type: integer
+        search_time_ms:
+          type: integer
+          format: int64
+        cache_hit:
+          type: boolean
+    Flight:
+      type: object
+      required:
+        - id
+        - provider
+        - airline
+        - flight_number
+        - departure
+        - arrival
+        - duration
+        - stops
+        - price
+        - available_seats
+        - cabin_class
+        - amenities
+        - baggage
+      properties:
+        id:
+          type: string
+        provider:
+          type: string
+        airline:
+          $ref: '#/components/schemas/Airline'
+        flight_number:
+          type: string
+        departure:
+          $ref: '#/components/schemas/FlightPoint'
+        arrival:
+          $ref: '#/components/schemas/FlightPoint'
+        duration:
+          $ref: '#/components/schemas/Duration'
+        stops:
+          type: integer
+        price:
+          $ref: '#/components/schemas/Price'
+        available_seats:
+          type: integer
+        cabin_class:
+          type: string
+        aircraft:
+          type:
+            - string
+            - 'null'
+        amenities:
+          type: array
+          items:
+            type: string
+        baggage:
+          $ref: '#/components/schemas/Baggage'
+    Airline:
+      type: object
+      required:
+        - name
+        - code
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+    FlightPoint:
+      type: object
+      required:
+        - airport
+        - city
+        - datetime
+        - timestamp
+      properties:
+        airport:
+          type: string
+        city:
+          type: string
+        datetime:
+          type: string
+        timestamp:
+          type: integer
+          format: int64
+    Duration:
+      type: object
+      required:
+        - total_minutes
+        - formatted
+      properties:
+        total_minutes:
+          type: integer
+        formatted:
+          type: string
+    Price:
+      type: object
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: integer
+        formatted_amount:
+          type: string
+        currency:
+          type: string
+    Baggage:
+      type: object
+      required:
+        - carry_on
+        - checked
+      properties:
+        carry_on:
+          type: string
+        checked:
+          type: string
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string

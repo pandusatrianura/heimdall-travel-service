@@ -4,7 +4,49 @@
 	"values": [
 		{
 			"key": "base_url",
-			"value": "http://localhost:8080",
+			"value": "http://localhost:8008",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "search_path",
+			"value": "/api/v1/search",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "docs_base_url",
+			"value": "http://localhost:8081",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "openapi_url",
+			"value": "http://localhost:8081/openapi.yaml",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "swagger_ui_url",
+			"value": "http://localhost:8081/swagger-ui.html",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "redoc_url",
+			"value": "http://localhost:8081/redoc.html",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "example_one_way_body",
+			"value": "{\n  \"origins\": \"CGK\",\n  \"destinations\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"returnDate\": null,\n  \"passengers\": 1,\n  \"cabinClass\": \"economy\"\n}",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "example_multi_trip_body",
+			"value": "{\n  \"origins\": [\"CGK\", \"SUB\"],\n  \"destinations\": [\"DPS\", \"SIN\"],\n  \"departureDate\": [\"2025-12-15\", \"2025-12-20\"],\n  \"returnDate\": [null, \"2025-12-26\"],\n  \"passengers\": 1,\n  \"cabinClass\": \"economy\"\n}",
 			"type": "default",
 			"enabled": true
 		}

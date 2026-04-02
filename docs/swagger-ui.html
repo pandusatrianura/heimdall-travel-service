@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Heimdall API Docs - Swagger UI</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #f5f7fb;
+    }
+
+    .topbar {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 16px 20px;
+      background: #0f172a;
+      color: #e2e8f0;
+      border-bottom: 1px solid #1e293b;
+    }
+
+    .topbar strong {
+      color: #ffffff;
+    }
+
+    #swagger-ui {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <strong>Heimdall Travel Service</strong> API Reference via Swagger UI
+  </div>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    window.ui = SwaggerUIBundle({
+      url: './openapi.yaml',
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      docExpansion: 'list',
+      defaultModelsExpandDepth: 1,
+      defaultModelExpandDepth: 2,
+      displayRequestDuration: true,
+      tryItOutEnabled: false,
+    });
+  </script>
+</body>
+</html>

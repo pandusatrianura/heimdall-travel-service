@@ -2,7 +2,7 @@
     "info": {
         "_postman_id": "c1f7a0b3-f09d-476a-9b48-ef27976e1a47",
         "name": "Heimdall Flight Aggregator: Core Requirements",
-        "description": "Comprehensive test suite organized by core functional requirements: Aggregation, Filtering, Ranking, and Resilience.",
+        "description": "Comprehensive test suite organized by core functional requirements: aggregation, filtering, ranking, and positional multi-trip validation. Formal contract: docs/openapi.yaml. Local viewers after running `make docs-serve`: http://localhost:8081/swagger-ui.html and http://localhost:8081/redoc.html.",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "item": [
@@ -10,7 +10,7 @@
             "name": "1. Core: Aggregation & Normalization",
             "item": [
                 {
-                    "name": "Single Leg Aggregation",
+                    "name": "One-Way Search",
                     "request": {
                         "method": "POST",
                         "header": [
@@ -21,7 +21,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"origin\": \"CGK\",\n  \"destination\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"passengers\": 1\n}"
+                            "raw": "{\n  \"origins\": \"CGK\",\n  \"destinations\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"returnDate\": null,\n  \"passengers\": 1,\n  \"cabinClass\": \"economy\"\n}"
                         },
                         "url": {
                             "raw": "{{base_url}}/api/v1/search",
@@ -34,11 +34,51 @@
                                 "search"
                             ]
                         },
-                        "description": "Requirement 1: Fetches flight data from multiple airlines and normalizes them into a common format."
-                    }
+                        "description": "Requirement 1: Fetches flight data from multiple airlines for one positional trip item and returns a flat flights list."
+                    },
+                    "response": [
+                        {
+                            "name": "200 OK - One-Way Flat Response",
+                            "originalRequest": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"origins\": \"CGK\",\n  \"destinations\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"returnDate\": null,\n  \"passengers\": 1,\n  \"cabinClass\": \"economy\"\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/search",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "search"
+                                    ]
+                                }
+                            },
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "cookie": [],
+                            "body": "{\n  \"search_criteria\": {\n    \"origin\": \"CGK\",\n    \"destination\": \"DPS\",\n    \"departure_date\": \"2025-12-15\",\n    \"passengers\": 1,\n    \"cabin_class\": \"economy\"\n  },\n  \"metadata\": {\n    \"total_results\": 1,\n    \"providers_queried\": 4,\n    \"providers_succeeded\": 4,\n    \"providers_failed\": 0,\n    \"search_time_ms\": 150,\n    \"cache_hit\": false\n  },\n  \"flights\": [\n    {\n      \"id\": \"garuda-outbound-1\",\n      \"provider\": \"Garuda Indonesia\"\n    }\n  ]\n}"
+                        }
+                    ]
                 },
                 {
-                    "name": "Round-Trip Decomposition",
+                    "name": "Round-Trip Search",
                     "request": {
                         "method": "POST",
                         "header": [
@@ -49,7 +89,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"origin\": \"CGK\",\n  \"destination\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"returnDate\": \"2025-12-18\"\n}"
+                            "raw": "{\n  \"origins\": \"CGK\",\n  \"destinations\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"returnDate\": \"2025-12-18\",\n  \"passengers\": 1,\n  \"cabinClass\": \"economy\"\n}"
                         },
                         "url": {
                             "raw": "{{base_url}}/api/v1/search",
@@ -62,8 +102,48 @@
                                 "search"
                             ]
                         },
-                        "description": "Requirement 1: Aggregates multiple legs (outbound/inbound) in parallel."
-                    }
+                        "description": "Requirement 1: Expands a single positional trip item into one outbound leg and one inbound leg, then returns both in one flat flights list."
+                    },
+                    "response": [
+                        {
+                            "name": "200 OK - Round-Trip Flat Response",
+                            "originalRequest": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"origins\": \"CGK\",\n  \"destinations\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"returnDate\": \"2025-12-18\",\n  \"passengers\": 1,\n  \"cabinClass\": \"economy\"\n}"
+                                },
+                                "url": {
+                                    "raw": "{{base_url}}/api/v1/search",
+                                    "host": [
+                                        "{{base_url}}"
+                                    ],
+                                    "path": [
+                                        "api",
+                                        "v1",
+                                        "search"
+                                    ]
+                                }
+                            },
+                            "status": "OK",
+                            "code": 200,
+                            "_postman_previewlanguage": "json",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "cookie": [],
+                            "body": "{\n  \"search_criteria\": {\n    \"origin\": \"CGK\",\n    \"destination\": \"DPS\",\n    \"departure_date\": \"2025-12-15\",\n    \"return_date\": \"2025-12-18\",\n    \"passengers\": 1,\n    \"cabin_class\": \"economy\"\n  },\n  \"metadata\": {\n    \"total_results\": 2,\n    \"providers_queried\": 4,\n    \"providers_succeeded\": 4,\n    \"providers_failed\": 0,\n    \"search_time_ms\": 200,\n    \"cache_hit\": false\n  },\n  \"flights\": [\n    {\n      \"id\": \"garuda-outbound-1\",\n      \"provider\": \"Garuda Indonesia\"\n    },\n    {\n      \"id\": \"garuda-inbound-1\",\n      \"provider\": \"Garuda Indonesia\"\n    }\n  ]\n}"
+                        }
+                    ]
                 }
             ]
         },
@@ -82,7 +162,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"origin\": \"CGK\",\n  \"destination\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"max_price\": 2000000,\n  \"airlines\": [\"Garuda Indonesia\"]\n}"
+                            "raw": "{\n  \"origins\": \"CGK\",\n  \"destinations\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"passengers\": 1,\n  \"cabinClass\": \"economy\",\n  \"max_price\": 2000000,\n  \"airlines\": [\"Garuda Indonesia\"]\n}"
                         },
                         "url": {
                             "raw": "{{base_url}}/api/v1/search",
@@ -110,7 +190,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"origin\": \"CGK\",\n  \"destination\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"max_stops\": 0,\n  \"max_duration\": 120\n}"
+                            "raw": "{\n  \"origins\": \"CGK\",\n  \"destinations\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"passengers\": 1,\n  \"cabinClass\": \"economy\",\n  \"max_stops\": 0,\n  \"max_duration\": 120\n}"
                         },
                         "url": {
                             "raw": "{{base_url}}/api/v1/search",
@@ -143,7 +223,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"origin\": \"CGK\",\n  \"destination\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"sort_by\": \"best_value\"\n}"
+                            "raw": "{\n  \"origins\": \"CGK\",\n  \"destinations\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"passengers\": 1,\n  \"cabinClass\": \"economy\",\n  \"sort_by\": \"best_value\"\n}"
                         },
                         "url": {
                             "raw": "{{base_url}}/api/v1/search",
@@ -171,7 +251,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"origin\": \"CGK\",\n  \"destination\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"sort_by\": \"price_lowest\"\n}"
+                            "raw": "{\n  \"origins\": \"CGK\",\n  \"destinations\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"passengers\": 1,\n  \"cabinClass\": \"economy\",\n  \"sort_by\": \"price_lowest\"\n}"
                         },
                         "url": {
                             "raw": "{{base_url}}/api/v1/search",
@@ -204,7 +284,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"origin\": [\"CGK\", \"DPS\"],\n  \"destination\": [\"DPS\", \"SIN\"],\n  \"departureDate\": [\"2025-12-15\", \"2025-12-20\"],\n  \"returnDate\": \"2025-12-10\"\n}"
+                            "raw": "{\n  \"origins\": [\"CGK\", \"SUB\"],\n  \"destinations\": [\"DPS\", \"SIN\"],\n  \"departureDate\": [\"2025-12-15\", \"2025-12-20\"],\n  \"returnDate\": [\"2025-12-10\", \"2025-12-26\"]\n}"
                         },
                         "url": {
                             "raw": "{{base_url}}/api/v1/search",
@@ -217,7 +297,47 @@
                                 "search"
                             ]
                         },
-                        "description": "Requirement 4: Validates data chronology (return date must be after departure)."
+                        "description": "Requirement 4: Validates chronology per positional trip item. The first returnDate is earlier than its paired departureDate, so the request should fail with 400.",
+                        "response": [
+                            {
+                                "name": "400 Bad Request - Chronology Error",
+                                "originalRequest": {
+                                    "method": "POST",
+                                    "header": [
+                                        {
+                                            "key": "Content-Type",
+                                            "value": "application/json"
+                                        }
+                                    ],
+                                    "body": {
+                                        "mode": "raw",
+                                        "raw": "{\n  \"origins\": [\"CGK\", \"SUB\"],\n  \"destinations\": [\"DPS\", \"SIN\"],\n  \"departureDate\": [\"2025-12-15\", \"2025-12-20\"],\n  \"returnDate\": [\"2025-12-10\", \"2025-12-26\"]\n}"
+                                    },
+                                    "url": {
+                                        "raw": "{{base_url}}/api/v1/search",
+                                        "host": [
+                                            "{{base_url}}"
+                                        ],
+                                        "path": [
+                                            "api",
+                                            "v1",
+                                            "search"
+                                        ]
+                                    }
+                                },
+                                "status": "Bad Request",
+                                "code": 400,
+                                "_postman_previewlanguage": "json",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "cookie": [],
+                                "body": "{\n  \"error\": \"returnDate cannot be earlier than departureDate for trip item 0\"\n}"
+                            }
+                        ]
                     }
                 },
                 {
@@ -232,7 +352,7 @@
                         ],
                         "body": {
                             "mode": "raw",
-                            "raw": "{\n  \"origin\": \"CGK\",\n  \"departureDate\": \"2025-12-15\"\n}"
+                            "raw": "{\n  \"origins\": \"CGK\",\n  \"departureDate\": \"2025-12-15\"\n}"
                         },
                         "url": {
                             "raw": "{{base_url}}/api/v1/search",
@@ -251,7 +371,7 @@
             ]
         },
         {
-            "name": "5. Deep Matrix Search (Combination Mode)",
+            "name": "5. Positional Multi-Trip Search",
             "request": {
                 "method": "POST",
                 "header": [
@@ -262,7 +382,7 @@
                 ],
                 "body": {
                     "mode": "raw",
-                    "raw": "{\n  \"origins\": [\"CGK\", \"SUB\"],\n  \"destinations\": [\"DPS\", \"SIN\"],\n  \"departureDate\": [\"2025-12-15\", \"2025-12-20\"],\n  \"returnDate\": [\"2025-12-25\", \"2025-12-26\"]\n}"
+                    "raw": "{\n  \"origins\": [\"CGK\", \"SUB\"],\n  \"destinations\": [\"DPS\", \"SIN\"],\n  \"departureDate\": [\"2025-12-15\", \"2025-12-20\"],\n  \"returnDate\": [\"2025-12-25\", \"2025-12-26\"],\n  \"passengers\": 1,\n  \"cabinClass\": \"economy\"\n}"
                 },
                 "url": {
                     "raw": "{{base_url}}/api/v1/search",
@@ -275,7 +395,47 @@
                         "search"
                     ]
                 },
-                "description": "Demonstrates the deep Cartesian Matrix Search across multiple origins, destinations, and dates (Cold start ~800ms, Cached ~1ms)."
+                "description": "Demonstrates positional multi-trip routing. Index 0 pairs CGK->DPS with 2025-12-15/2025-12-25, and index 1 pairs SUB->SIN with 2025-12-20/2025-12-26. Response stays flat in flights[] while search_criteria echoes arrays.",
+                "response": [
+                    {
+                        "name": "200 OK - Multi-Trip Flat Response",
+                        "originalRequest": {
+                            "method": "POST",
+                            "header": [
+                                {
+                                    "key": "Content-Type",
+                                    "value": "application/json"
+                                }
+                            ],
+                            "body": {
+                                "mode": "raw",
+                                "raw": "{\n  \"origins\": [\"CGK\", \"SUB\"],\n  \"destinations\": [\"DPS\", \"SIN\"],\n  \"departureDate\": [\"2025-12-15\", \"2025-12-20\"],\n  \"returnDate\": [\"2025-12-25\", \"2025-12-26\"],\n  \"passengers\": 1,\n  \"cabinClass\": \"economy\"\n}"
+                            },
+                            "url": {
+                                "raw": "{{base_url}}/api/v1/search",
+                                "host": [
+                                    "{{base_url}}"
+                                ],
+                                "path": [
+                                    "api",
+                                    "v1",
+                                    "search"
+                                ]
+                            }
+                        },
+                        "status": "OK",
+                        "code": 200,
+                        "_postman_previewlanguage": "json",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "cookie": [],
+                        "body": "{\n  \"search_criteria\": {\n    \"origin\": [\"CGK\", \"SUB\"],\n    \"destination\": [\"DPS\", \"SIN\"],\n    \"departure_date\": [\"2025-12-15\", \"2025-12-20\"],\n    \"return_date\": [\"2025-12-25\", \"2025-12-26\"],\n    \"passengers\": 1,\n    \"cabin_class\": \"economy\"\n  },\n  \"metadata\": {\n    \"total_results\": 4,\n    \"providers_queried\": 4,\n    \"providers_succeeded\": 4,\n    \"providers_failed\": 0,\n    \"search_time_ms\": 240,\n    \"cache_hit\": false\n  },\n  \"flights\": [\n    {\n      \"id\": \"trip0-outbound-1\",\n      \"provider\": \"Garuda Indonesia\"\n    },\n    {\n      \"id\": \"trip0-inbound-1\",\n      \"provider\": \"Garuda Indonesia\"\n    },\n    {\n      \"id\": \"trip1-outbound-1\",\n      \"provider\": \"Lion Air\"\n    },\n    {\n      \"id\": \"trip1-inbound-1\",\n      \"provider\": \"Lion Air\"\n    }\n  ]\n}"
+                    }
+                ]
             }
         }
     ]

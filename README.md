@@ -67,10 +67,28 @@ This multi-stage build creates a minimal Alpine image (~20MB) and automatically 
 
 * `make check` - Full local CI suite (Linter, Security, and Unit Tests).
 * `make test` - Runs unit tests with `-race` and `-cover`.
+* `make docs-serve` - Serve the OpenAPI spec and local API docs viewers from the `docs/` folder.
 * **Load & Stress Testing** - Measure throughput and latency percentiles:
   ```bash
   chmod +x ./scripts/stress_test.sh && ./scripts/stress_test.sh http://localhost:8008 10 100
   ```
+
+### API Documentation
+The formal API contract is available in [docs/openapi.yaml](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/docs/openapi.yaml).
+
+For a browsable local viewer, serve the `docs/` directory and open one of these pages:
+
+```bash
+make docs-serve
+```
+
+Then open:
+- Swagger UI: [docs/swagger-ui.html](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/docs/swagger-ui.html)
+- Redoc: [docs/redoc.html](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/docs/redoc.html)
+
+When served locally, the pages are available at:
+- `http://localhost:8081/swagger-ui.html`
+- `http://localhost:8081/redoc.html`
 
 ---
 
@@ -84,13 +102,14 @@ curl -X POST http://localhost:8008/api/v1/search \
        "origins": "CGK",
        "destinations": "DPS",
        "departureDate": "2025-12-15",
+       "returnDate": null,
        "passengers": 1,
        "cabinClass": "economy"
      }'
 ```
 
 ### Round-Trip Search
-Using legacy properties with a `returnDate`:
+The outbound and inbound legs are paired from the same trip item:
 ```bash
 curl -X POST http://localhost:8008/api/v1/search \
      -H "Content-Type: application/json" \
@@ -99,15 +118,16 @@ curl -X POST http://localhost:8008/api/v1/search \
        "destinations": "DPS",
        "departureDate": "2025-12-15",
        "returnDate": "2025-12-18",
-       "passengers": 1
+       "passengers": 1,
+       "cabinClass": "economy"
      }'
 ```
 
-### Deep Matrix Search (Combination Mode)
-Discover all possible flight combinations across multiple origins, destinations, and dates in one request:
+### Multi-Trip Search (Positional Pairing)
+Each array index represents one independent trip item. The service does **not** build a Cartesian product.
 ```bash
-# Matrix: 2 Origins x 2 Destinations x 2 Dates = 8 potential outbound legs
-# Returns: Matches from every city to every other city on all provided dates
+# Trip 0: CGK -> DPS, depart 2025-12-15, return 2025-12-25
+# Trip 1: SUB -> SIN, depart 2025-12-20, return 2025-12-26
 curl -X POST http://localhost:8008/api/v1/search \
      -H "Content-Type: application/json" \
      -d '{
@@ -117,7 +137,92 @@ curl -X POST http://localhost:8008/api/v1/search \
        "returnDate": ["2025-12-25", "2025-12-26"]
      }'
 ```
-*Identity routes (e.g., CGK→CGK) are automatically filtered out.*
+
+### Mixed One-Way and Round-Trip Search
+`returnDate` can be omitted per item by using `null` or an empty string in that position.
+```bash
+# Trip 0: one-way CGK -> DPS on 2025-12-15
+# Trip 1: round-trip SUB -> SIN on 2025-12-20, return 2025-12-26
+curl -X POST http://localhost:8008/api/v1/search \
+     -H "Content-Type: application/json" \
+     -d '{
+       "origins": ["CGK", "SUB"],
+       "destinations": ["DPS", "SIN"],
+       "departureDate": ["2025-12-15", "2025-12-20"],
+       "returnDate": [null, "2025-12-26"],
+       "passengers": 1,
+       "cabinClass": "economy"
+     }'
+```
+
+### Response Shape
+The API returns a flat `flights` list.
+
+For a single trip item, `search_criteria.origin`, `destination`, and `departure_date` are serialized as scalar strings, matching the original response shape. For positional multi-trip requests, those same fields are echoed as arrays so each index still maps back to the requested trip item.
+
+```json
+{
+  "search_criteria": {
+    "origin": "CGK",
+    "destination": "DPS",
+    "departure_date": "2025-12-15",
+    "passengers": 1,
+    "cabin_class": "economy"
+  },
+  "metadata": {
+    "total_results": 1,
+    "providers_queried": 4,
+    "providers_succeeded": 4,
+    "providers_failed": 0,
+    "search_time_ms": 150,
+    "cache_hit": false
+  },
+  "flights": [
+    {
+      "id": "QZ7250_AirAsia",
+      "provider": "AirAsia",
+      "airline": {
+        "name": "AirAsia",
+        "code": "QZ"
+      },
+      "flight_number": "QZ7250",
+      "departure": {
+        "airport": "CGK",
+        "city": "Jakarta",
+        "datetime": "2025-12-15T15:15:00+07:00",
+        "timestamp": 1734246900
+      },
+      "arrival": {
+        "airport": "DPS",
+        "city": "Denpasar",
+        "datetime": "2025-12-15T20:35:00+08:00",
+        "timestamp": 1734267300
+      },
+      "duration": {
+        "total_minutes": 260,
+        "formatted": "4h 20m"
+      },
+      "stops": 1,
+      "price": {
+        "amount": 485000,
+        "currency": "IDR"
+      },
+      "available_seats": 88,
+      "cabin_class": "economy",
+      "aircraft": null,
+      "amenities": [],
+      "baggage": {
+        "carry_on": "Cabin baggage only",
+        "checked": "Additional fee"
+      }
+    }
+  ]
+}
+```
+
+This example is intentionally aligned with [mock_provider/expected_result.json](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/mock_provider/expected_result.json). For positional multi-trip requests, `search_criteria` is echoed as arrays and `flights[]` remains flat.
+
+*Identity routes (for example `CGK -> CGK`) are rejected with `400 Bad Request`.*
 
 ---
 
@@ -177,14 +282,14 @@ curl -X POST http://localhost:8008/api/v1/search \
 **Requirement**: Handle time zones, missing fields, and validate flight data chronology.
 **Validation**:
 ```bash
-# Triggering validation: returnDate must be after last departureDate
+# Triggering validation: each positional item must have aligned arrays and returnDate cannot be earlier than departureDate
 curl -X POST http://localhost:8008/api/v1/search \
      -H "Content-Type: application/json" \
      -d '{
-       "origins": ["CGK", "DPS"],
+       "origins": ["CGK", "SUB"],
        "destinations": ["DPS", "SIN"],
        "departureDate": ["2025-12-15", "2025-12-20"],
-       "returnDate": "2025-12-10"
+       "returnDate": ["2025-12-10", "2025-12-26"]
      }'
 ```
 *Note: The timeutil package internally normalizes mixed provider formats (ISO-8601, RFC-1123) into UTC Unix timestamps.*
@@ -193,75 +298,81 @@ curl -X POST http://localhost:8008/api/v1/search \
 
 ## 4. API Performance & Complexity
 
-### Algorithm Complexity (The Matrix Factor)
-The aggregator uses an exhaustive **Matrix Search** because the API accepts arrays for origins, destinations, and dates. A linear algorithm only works well for a single route and a single date. As soon as clients send multiple cities or multiple travel dates, the server must generate every valid independent flight leg or it will silently miss available combinations.
+### Algorithm Complexity (Positional Trip Expansion)
+The aggregator now uses **positional trip expansion**. Each index in `origins`, `destinations`, `departureDate`, and optional `returnDate` represents one trip item. This makes the request contract deterministic: the server expands exactly the trips the client specified, instead of generating a Cartesian product.
 
-At the implementation level, the request is expanded into outbound and inbound leg sets:
+At the implementation level:
 
-- **Outbound Matrix**: $Legs_{out} = \{Origins\} \times \{Destinations\} \times \{DepartureDates\}$
-- **Inbound Matrix**: $Legs_{in} = \{Destinations\} \times \{Origins\} \times \{ReturnDates\}$
-- **Total Legs**: $Legs_{total} = Legs_{out} + Legs_{in}$
-- **Provider Fan-Out**: $Requests_{upstream} = Legs_{total} \times P$
+- **Trip Items**: $Trips = N$
+- **Outbound Legs**: $Legs_{out} = N$
+- **Inbound Legs**: $Legs_{in} = R$
+- **Total Legs**: $Legs_{total} = N + R$
+- **Provider Fan-Out**: $Requests_{upstream} = (N + R) \times P$
 
-For a high-level complexity summary, this behaves like **$O(O \cdot D \cdot T \cdot P)$**.
+Where $R$ is the number of trip items that include a non-empty `returnDate`.
+
+For a high-level summary, the request fan-out now behaves like **$O(N \cdot P)$** because each trip item produces at most two legs.
 
 > [!NOTE]
 > **Where**:
-> - **O**: Number of distinct **Origins** provided in the request.
-> - **D**: Number of distinct **Destinations** provided in the request.
-> - **T**: Number of distinct travel dates being expanded.
+> - **N**: Number of positional **Trip Items** provided in the request.
+> - **R**: Number of trip items with a non-empty `returnDate`.
 > - **P**: Number of active **Upstream Providers** (Airline APIs) configured.
 
 > [!IMPORTANT]
-> This implementation performs a **matrix leg search**, not a connected multi-city itinerary builder. It generates independent legs such as `CGK -> DPS` and `DPS -> CGK`, then queries every provider for each leg. It does **not** currently stitch `CGK -> DPS -> SIN` into a single composite itinerary object.
+> This implementation performs **positional multi-trip expansion**, not a connected itinerary builder. It generates only the legs specified by each trip item, then queries every provider for those legs. It does **not** currently stitch `CGK -> DPS -> SIN` into a single composite itinerary object.
 
-#### Why Choose Matrix Search Instead of Linear Search?
+#### Why Choose Positional Expansion Instead of Matrix Search?
 
-1. **Completeness of discovery**: If the client sends 2 origins, 2 destinations, and 2 dates, the service should evaluate all valid combinations, not just the first route or index-aligned pairs.
-2. **Single flexible API contract**: One implementation supports both simple one-way requests and larger matrix searches because a scalar input is just a matrix of size 1.
-3. **Less client-side orchestration**: Without matrix expansion, the client would need to generate dozens of separate requests and manually merge the responses.
-4. **Natural fit for concurrency**: Each `leg x provider` request is independent, so it maps directly to the scatter-gather goroutine model used by the aggregator.
-5. **Predictable performance profile**: Although request count grows multiplicatively, wall-clock latency stays closer to the slowest provider because the calls run concurrently.
+1. **Deterministic routing**: The payload directly maps to the routes the client asked for, with no hidden Cartesian expansion.
+2. **Natural support for one-way and round-trip in one request**: Each item may or may not have a `returnDate`.
+3. **Multi-trip without ambiguity**: `origins[1]`, `destinations[1]`, and `departureDate[1]` always belong to the same trip item.
+4. **Less unnecessary provider work**: The service queries only requested legs, so fan-out is smaller than the old matrix mode.
+5. **Natural fit for concurrency**: Each generated `leg x provider` request is still independent, so scatter-gather remains efficient.
 
 #### Worked Calculation Samples
 
 **Sample 1: Simple One-Way Search**
 
-- Inputs: 1 origin, 1 destination, 1 departure date, 0 return dates, 4 providers
-- Outbound legs: $1 \times 1 \times 1 = 1$
+- Inputs: 1 trip item, no return date, 4 providers
+- Outbound legs: $1$
 - Inbound legs: $0$
 - Total legs: $1$
 - Upstream requests: $1 \times 4 = 4$
 
 **Sample 2: Round-Trip Search**
 
-- Inputs: 1 origin, 1 destination, 1 departure date, 1 return date, 4 providers
-- Outbound legs: $1 \times 1 \times 1 = 1$
-- Inbound legs: $1 \times 1 \times 1 = 1$
+- Inputs: 1 trip item, 1 return date, 4 providers
+- Outbound legs: $1$
+- Inbound legs: $1$
 - Total legs: $1 + 1 = 2$
 - Upstream requests: $2 \times 4 = 8$
 
-**Sample 3: Deep Matrix Search**
+**Sample 3: Positional Multi-Trip Search**
 
-- Inputs: 2 origins, 2 destinations, 2 departure dates, 2 return dates, 4 providers
-- Outbound legs: $2 \times 2 \times 2 = 8$
-- Inbound legs: $2 \times 2 \times 2 = 8$
-- Total legs: $8 + 8 = 16$
-- Upstream requests: $16 \times 4 = 64$
+- Inputs: 2 trip items, both round-trip, 4 providers
+- Outbound legs: $2$
+- Inbound legs: $2$
+- Total legs: $2 + 2 = 4$
+- Upstream requests: $4 \times 4 = 16$
 
 This is the exact reasoning behind the example below:
 
-- **Example**: Searching **2 origins**, **2 destinations**, **2 departure dates**, and **2 return dates** across **4 providers** triggers $16 \text{ legs} \cdot 4 \text{ providers} = \mathbf{64}$ concurrent upstream requests.
+- **Example**: Searching **2 positional trip items** across **4 providers** triggers $4 \text{ legs} \cdot 4 \text{ providers} = \mathbf{16}$ concurrent upstream requests when both items are round-trip.
 
-**Sample 4: Identity Route Filtering**
+**Sample 4: Mixed One-Way and Round-Trip Search**
 
-- Inputs: Origins = `[CGK, DPS]`, Destinations = `[CGK, SIN]`, 1 departure date
-- Naive combinations: $2 \times 2 \times 1 = 4$
-- Generated pairs: `CGK -> CGK`, `CGK -> SIN`, `DPS -> CGK`, `DPS -> SIN`
-- Valid pairs after filtering identity routes: $3$
-- Upstream requests with 4 providers: $3 \times 4 = 12$
+- Inputs: 2 trip items, only the second item has `returnDate`, 4 providers
+- Outbound legs: $2$
+- Inbound legs: $1$
+- Total legs: $3$
+- Upstream requests: $3 \times 4 = 12$
 
-This matters because the implementation intentionally skips routes where origin and destination are equal.
+**Sample 5: Identity Route Validation**
+
+- Inputs: `origins = ["CGK"]`, `destinations = ["CGK"]`, `departureDate = ["2025-12-15"]`
+- Result: `400 Bad Request`
+- Reason: the implementation rejects trip items where origin and destination are equal.
 
 ### High-Concurrency Scatter-Gather
 - **Network Bound**: Due to parallel Goroutine fan-out, the wall-clock time is governed by $O(\max(T_{provider}))$, effectively the latency of the slowest provider responding.
@@ -271,19 +382,19 @@ This matters because the implementation intentionally skips routes where origin 
 ### Throughput & Scaling
 The system uses the `golang.org/x/time/rate` token-bucket limiter to safely bridge between high-concurrency requests and provider rate limits.
 - **RPS Capability**: Limited primarily by memory (result volume) and the `PROVIDER_TIMEOUT_MS` setting.
-- **Observability**: Every response includes a `metadata` block with `total_legs`, `providers_queried`, and `search_time_ms` for performance monitoring.
+- **Observability**: Every response includes a `metadata` block with `total_results`, `providers_queried`, and `search_time_ms` for performance monitoring.
 
-### Latency Benchmarks (Production-Simulation)
-Performance captured using k6 stress tests (10-30 VUs) with 200ms simulated provider latency:
+### Fan-Out Reference Table
 
-| Mode | Search Legs | Upstream Req | Cold Start Latency | Cached Latency (95%) |
-| :--- | :--- | :--- | :--- | :--- |
-| **Simple Search** | 1 | 4 | ~160ms | < 2ms |
-| **Round-Trip** | 2 | 8 | ~230ms | < 2ms |
-| **Deep Matrix** | 16 | 64 | ~840ms | < 4ms |
+| Mode | Trip Items | Search Legs | Upstream Req |
+| :--- | :--- | :--- | :--- |
+| **One-Way** | 1 | 1 | 4 |
+| **Round-Trip** | 1 | 2 | 8 |
+| **Two Round-Trip Items** | 2 | 4 | 16 |
+| **Mixed One-Way + Round-Trip** | 2 | 3 | 12 |
 
 > [!TIP]
-> **Scaling Strategy**: The high-concurrency fan-out ensures that even a massive 16-leg search completes in roughly the same time as the slowest single provider call (~800ms total), rather than scaling linearly with leg count.
+> **Scaling Strategy**: The high-concurrency fan-out now scales linearly with the number of trip items and whether each item includes a return leg, rather than multiplying every origin against every destination and date.
 
 ---
 
@@ -319,11 +430,13 @@ The `best_value` sort isn't a hardcoded guess. It uses dynamic normalization:
 ### 7. Timezone Disparity Resolution
 Since different airlines return time in varied formats (ISO-8601, RFC-1123, or custom offsets), we use a dedicated `timeutil` parser. This normalizes everything to **UTC Unix Timestamps**, ensuring duration calculations and sorting are mathematically accurate regardless of the flight's origin timezone.
 
-### 8. Multi-Leg Parallel Fan-Out
-To natively support complex queries like **Round-Trip** and **Matrix Leg Search** combinations, the traditional Search API has been augmented.
-* **Flexible Payload**: Clients can optionally supply arrays of locations and dates (`["CGK","DPS"]`), transparently mapped through advanced JSON unmarshalers (maintaining 100% backward compatibility for single-string payloads).
-* **Segment Resolving & Concurrency**: The request is mathematically partitioned into distinct flight legs (`SearchLeg`). Using a high-performance `Goroutine` fan-out mechanism, instead of executing requests sequentially, the aggregator multiplexes `NxM` requests asynchronously (`Legs x Providers`) into a single results channel with aggressive sub-second completion times.
-* **Current Scope Boundary**: These legs are independent route searches. The service does not yet combine three or more city hops into one stitched itinerary record with a single fare and connection graph.
+### 8. Positional Multi-Trip Fan-Out
+To support **One-Way**, **Round-Trip**, and **Multi-Trip** requests with one contract, the Search API now treats each array index as one trip item.
+* **Flexible Payload**: Clients can still send a scalar string for single-route searches or arrays for multiple trip items.
+* **Deterministic Mapping**: `origins[i]`, `destinations[i]`, `departureDate[i]`, and optional `returnDate[i]` always belong to the same trip item.
+* **Segment Resolving & Concurrency**: Each trip item becomes one outbound leg and, if `returnDate` exists, one inbound leg. The aggregator then fans those legs out across all providers concurrently.
+* **Flat Response Contract**: Results are returned in one `flights[]` array. For single-trip searches, `search_criteria` stays scalar; for positional multi-trip searches, those criteria fields echo back as arrays.
+* **Current Scope Boundary**: These trip items are independent route searches. The service does not yet combine three or more city hops into one stitched itinerary record with a single fare and connection graph.
 
 ### 9. Token-Bucket Rate Limiting (`golang.org/x/time/rate`)
 Airline APIs aggressively flag abusive pollers. Beyond the Circuit Breaker which handles failures, we explicitly prevent API bans by enforcing programmatic throttling.
@@ -357,7 +470,7 @@ graph TD
 
     Unifier --> FilterSort[Filter & Sort Engine]
     FilterSort --> Cache[(In-Memory Cache)]
-    FilterSort -->|JSON Response| Client
+    FilterSort -->|Flat JSON Response| Client
 ```
 
 ### Flowchart Diagram
@@ -367,19 +480,20 @@ flowchart TD
     A --> B{Validate Payload}
     B -- Invalid --> C[Return 400 ERROR]
     B -- Valid --> D[Generate Correlation ID]
-    D --> E[Deconstruct into Legs]
-    E --> F[Trigger Concurrent Providers]
+    D --> E[Normalize Positional Trip Items]
+    E --> E2[Deconstruct into Outbound and Optional Inbound Legs]
+    E2 --> F[Trigger Concurrent Providers]
     F --> G{Rate Limiter & Circuit Breaker}
     G -- Limit Exceeded/Fault --> H[Skip/Fallback]
     G -- Ready --> I[Fetch Mock Data & Inject Latency]
     I --> J[Map to Standard Flight Model]
     H --> K[Gather Results]
     J --> K
-    K --> L[Apply Filters: Max Stops, Price, etc.]
-    L --> M[Calculate Best Value Score]
-    M --> N[Sort Results]
-    N --> O[Return HTTP 200 JSON]
-    O --> End([End])
+    K --> M[Apply Filters: Max Stops, Price, etc.]
+    M --> N[Calculate Best Value Score]
+    N --> O[Sort Flat Flight List]
+    O --> P[Return HTTP 200 JSON]
+    P --> End([End])
     C --> End
 ```
 
@@ -394,7 +508,7 @@ sequenceDiagram
 
     Client->>Handler: POST /api/v1/search
     Handler->>Aggregator: HandleSearch(Context, Request)
-    Aggregator->>Aggregator: Extract Legs (RoundTrip/MultiCity)
+    Aggregator->>Aggregator: Normalize Trip Items and Extract Legs
     
     loop For each Leg
         loop For each Provider
@@ -409,8 +523,8 @@ sequenceDiagram
         end
     end
     
-    Aggregator->>Aggregator: Merge, Filter, & Sort
-    Aggregator-->>Handler: []models.Flight
+    Aggregator->>Aggregator: Flatten, Filter, & Sort
+    Aggregator-->>Handler: SearchResponse{flights, metadata}
     Handler-->>Client: 200 OK
 ```
 
@@ -426,7 +540,7 @@ classDiagram
         -cache *cache.Cache
         -limiters map~string~*rate.Limiter
         -breakers map~string~*gobreaker.CircuitBreaker
-        +Search(ctx, req) ([]Flight, error)
+        +Search(ctx, req) (*SearchResponse, error)
         -fetchWithRetry(ctx, prov, leg) ([]Flight, bool)
     }
     class FlightProvider {
@@ -438,6 +552,7 @@ classDiagram
         +FlexStringArray Origin
         +FlexStringArray Destination
         +FlexStringArray DepartureDate
+        +GetTripItems() []TripItem
         +GetLegs() []SearchLeg
     }
     
@@ -510,10 +625,66 @@ make k6-stress
 k6 run --vus 20 --duration 30s scripts/load_test.js
 ```
 
+**Option D: Custom Payload File**
+The script reads `scripts/search_payload.json` by default, but you can point it to a different payload file:
+
+```bash
+PAYLOAD_FILE=./scripts/matrix_payload.json k6 run scripts/load_test.js
+```
+
+The k6 script posts to `http://localhost:8008/api/v1/search` by default and validates that:
+- the response status is `200`
+- the JSON body contains a `flights` array
+- latency stays within the declared thresholds in `scripts/load_test.js`
+
 ### 3. Interpreting Results
 - **`http_req_duration`**: Look at the `p(95)` value. It should stay below your `PROVIDER_TIMEOUT_MS`.
 - **`http_req_failed`**: Should be 0.00%. If failures appear, check if the Circuit Breaker has tripped in the server logs.
 - **`iterations`**: Total number of successful flight search cycles completed.
+
+### 4. ApacheBench Stress Test
+
+For a quick repeatable stress test from the shell, this repository also includes [scripts/stress_test.sh](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/scripts/stress_test.sh), which wraps **ApacheBench (`ab`)**.
+
+Install ApacheBench if needed:
+
+```bash
+brew install httpd
+```
+
+Run the script:
+
+```bash
+chmod +x ./scripts/stress_test.sh
+./scripts/stress_test.sh http://localhost:8008 10 100
+```
+
+Arguments:
+- `host`: base host, default `http://localhost:8080`
+- `concurrency`: concurrent requests, default `10`
+- `total_requests`: total benchmark requests, default `100`
+
+The script posts `scripts/search_payload.json` to `/api/v1/search` and prints the ApacheBench summary.
+
+### 5. Example Stress Test Result
+
+Sample output from [scripts/test_results.txt](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/scripts/test_results.txt):
+
+```text
+Concurrency Level:      10
+Time taken for tests:   0.013 seconds
+Complete requests:      100
+Failed requests:        0
+Requests per second:    7839.45 [#/sec] (mean)
+Time per request:       1.276 [ms] (mean)
+Transfer rate:          62011.26 [Kbytes/sec] received
+```
+
+What to look at:
+- **Failed requests** should stay at `0` for healthy local runs.
+- **Requests per second** gives the aggregate throughput achieved for that benchmark shape.
+- **Time per request** shows the average latency seen by ApacheBench.
+- **Concurrency Level** tells you how hard the service was driven during the run.
 
 ---
 
@@ -522,7 +693,7 @@ k6 run --vus 20 --duration 30s scripts/load_test.js
 ## 8. System Requirements Specification
 
 ### 1 System purpose
-The Heimdall Travel Service shall provide a high-performance, concurrent flight aggregation API. Its primary purpose is to unify fragmented airline availability data, calculate round-trip and matrix leg search combinations, and rank flights by value and speed to serve client applications.
+The Heimdall Travel Service shall provide a high-performance, concurrent flight aggregation API. Its primary purpose is to unify fragmented airline availability data, calculate one-way, round-trip, and positional multi-trip combinations, and rank flights by value and speed to serve client applications.
 
 ### 2 System scope
 The scope encompasses the backend API logic handling HTTP traffic, managing outbound requests to mock airline providers (Garuda, Lion Air, Batik Air, AirAsia), parsing JSON, sanitizing mismatched timezone formats, and returning optimized JSON arrays. It does not include front-end UI components or physical persistent databases.
@@ -534,7 +705,7 @@ A purely RESTful Go backend leveraging isolated Goroutines to interface with par
 The system sits strictly between end-user client applications (e.g., mobile apps, Postman) and upstream external airline inventory APIs.
 
 #### 3.2 System functions
-- Parse single-route and matrix-search payloads using flexible `FlexStringArray`.
+- Parse single-route and positional multi-trip payloads using flexible string-or-array request fields.
 - Scatter-gather flight queries to upstream providers concurrently.
 - Protect upstream boundaries using Time-based Rate Limiting and Circuit Breaking.
 - Normalize timezones mathematically.

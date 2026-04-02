@@ -1,4 +1,4 @@
-.PHONY: all test lint sec check install-tools build run docker-up docker-down
+.PHONY: all test lint sec check install-tools build run docker-up docker-down docs-serve
 
 # Default target
 all: check build
@@ -67,3 +67,8 @@ k6-matrix:
 k6-matrix-stress:
 	@echo "==== Running k6 matrix stress test ===="
 	PAYLOAD_FILE=./matrix_payload.json k6 run --vus 30 --duration 1m scripts/load_test.js
+
+# Serve the OpenAPI spec and static API docs viewers from docs/
+docs-serve:
+	@echo "==== Serving API docs on http://localhost:8081 ===="
+	python3 -m http.server 8081 -d docs

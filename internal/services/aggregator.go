@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -72,21 +73,51 @@ func NewAggregatorService(mockDataPath string, ttl, cleanup time.Duration, provi
 	}
 }
 
-// GenerateCacheKey creates a unique string cache key based on search params
-func GenerateCacheKey(req *models.SearchRequest) string {
-	return fmt.Sprintf("%s_%s_%s_%s_%d_%s",
-		req.Origin, req.Destination, req.DepartureDate, req.ReturnDate, req.Passengers, req.CabinClass)
+// GenerateCacheKey creates a stable cache key based on normalized trip items and filters.
+func GenerateCacheKey(req *models.SearchRequest, trips []models.TripItem) string {
+	payload := struct {
+		Trips       []models.TripItem `json:"trips"`
+		Passengers  int               `json:"passengers"`
+		CabinClass  string            `json:"cabin_class"`
+		SortBy      string            `json:"sort_by,omitempty"`
+		MinPrice    int               `json:"min_price,omitempty"`
+		MaxPrice    int               `json:"max_price,omitempty"`
+		MaxStops    *int              `json:"max_stops,omitempty"`
+		Airlines    []string          `json:"airlines,omitempty"`
+		MaxDuration int               `json:"max_duration,omitempty"`
+	}{
+		Trips:       trips,
+		Passengers:  req.Passengers,
+		CabinClass:  req.CabinClass,
+		SortBy:      req.SortBy,
+		MinPrice:    req.MinPrice,
+		MaxPrice:    req.MaxPrice,
+		MaxStops:    req.MaxStops,
+		Airlines:    req.Airlines,
+		MaxDuration: req.MaxDuration,
+	}
+
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Sprintf("%v_%d_%s_%s", trips, req.Passengers, req.CabinClass, req.SortBy)
+	}
+
+	return string(raw)
 }
 
 func (s *AggregatorService) Search(ctx context.Context, req *models.SearchRequest) (*models.SearchResponse, error) {
+	tripItems, err := req.GetTripItems()
+	if err != nil {
+		return nil, fmt.Errorf("failed to process trips: %w", err)
+	}
+
 	slog.InfoContext(ctx, "Starting Aggregator search",
-		"origin", req.Origin,
-		"destination", req.Destination,
-		"date", req.DepartureDate)
+		"trips", len(tripItems),
+		"departure_dates", req.DepartureDate)
 	start := time.Now()
 
 	// 1. Check Cache
-	cacheKey := GenerateCacheKey(req)
+	cacheKey := GenerateCacheKey(req, tripItems)
 	if cachedData, found := s.cache.Get(cacheKey); found {
 		slog.InfoContext(ctx, "Serving from Memory Cache", "cache_key", cacheKey)
 		resp := cachedData.(*models.SearchResponse)
@@ -97,10 +128,10 @@ func (s *AggregatorService) Search(ctx context.Context, req *models.SearchReques
 		return &respCopy, nil
 	}
 
-	// Generate Flight Legs (resolves Round-Trip / Multi-City logic)
+	// Generate Flight Legs from positional trip items.
 	legs, err := req.GetLegs()
 	if err != nil {
-		return nil, fmt.Errorf("failed to process legs: %v", err)
+		return nil, fmt.Errorf("failed to process legs: %w", err)
 	}
 
 	// 2. Fetch from Providers Concurrently with Timeout Context across all Legs
@@ -170,8 +201,7 @@ func (s *AggregatorService) Search(ctx context.Context, req *models.SearchReques
 	close(resultsChan)
 	close(successCountChan)
 
-	// Collect results
-	var allFlights []models.Flight
+	allFlights := make([]models.Flight, 0)
 	for flights := range resultsChan {
 		allFlights = append(allFlights, flights...)
 	}
@@ -182,27 +212,19 @@ func (s *AggregatorService) Search(ctx context.Context, req *models.SearchReques
 	}
 	failed := numTasks - successful
 
+	allFlights = s.FilterAndSortFlights(allFlights, req, ctx)
+	totalResults := len(allFlights)
+
 	slog.InfoContext(ctx, "Gathered flights phase complete",
 		"successful_apis", successful,
 		"failed_apis", failed,
-		"total_raw_flights", len(allFlights))
-
-	// 3. Post-Process (Filter / Normalize / Sort)
-	allFlights = s.FilterAndSortFlights(allFlights, req, ctx)
+		"total_flights", totalResults)
 
 	// 4. Construct Response
 	resp := &models.SearchResponse{
-		SearchCriteria: models.SearchCriteria{
-			Origin:        req.Origin,
-			Destination:   req.Destination,
-			DepartureDate: req.DepartureDate,
-			ReturnDate:    req.ReturnDate,
-			Passengers:    req.Passengers,
-			CabinClass:    req.CabinClass,
-		},
+		SearchCriteria: buildSearchCriteria(tripItems, req),
 		Metadata: models.Metadata{
-			TotalResults:       len(allFlights),
-			TotalLegs:          len(legs),
+			TotalResults:       totalResults,
 			ProvidersQueried:   len(s.providers),
 			ProvidersSucceeded: successful,
 			ProvidersFailed:    failed,
@@ -411,4 +433,29 @@ func (s *AggregatorService) applyBestValueSort(flights []models.Flight) {
 	sort.SliceStable(flights, func(i, j int) bool {
 		return calculateScore(flights[i]) < calculateScore(flights[j])
 	})
+}
+
+func buildSearchCriteria(tripItems []models.TripItem, req *models.SearchRequest) models.SearchCriteria {
+	origins := make(models.FlexStringArray, 0, len(tripItems))
+	destinations := make(models.FlexStringArray, 0, len(tripItems))
+	departureDates := make(models.FlexStringArray, 0, len(tripItems))
+	returnDates := make(models.NullableStringArray, 0, len(tripItems))
+
+	for _, trip := range tripItems {
+		origins = append(origins, trip.Origin)
+		destinations = append(destinations, trip.Destination)
+		departureDates = append(departureDates, trip.DepartureDate)
+		if trip.ReturnDate != "" || len(req.ReturnDate) > 0 {
+			returnDates = append(returnDates, trip.ReturnDate)
+		}
+	}
+
+	return models.SearchCriteria{
+		Origin:        origins,
+		Destination:   destinations,
+		DepartureDate: departureDates,
+		ReturnDate:    returnDates,
+		Passengers:    req.Passengers,
+		CabinClass:    req.CabinClass,
+	}
 }
