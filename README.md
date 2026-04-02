@@ -39,15 +39,30 @@ go run ./cmd/server/main.go
 ### Environment Configurations (.env)
 The system is fully tunable without code changes via the following environment variables:
 
-| Variable | Default | Description |
-| :--- | :--- | :--- |
-| `PORT` | `8080` | Port for the HTTP server. |
-| `MOCK_DATA_PATH` | `mock_provider` | Path to the mock JSON files. |
-| `CACHE_TTL_MINUTES` | `5` | Time To Live for in-memory cache entries. |
-| `CACHE_CLEANUP_MINUTES` | `10` | Interval for the cache background cleanup. |
-| `PROVIDER_TIMEOUT_MS` | `1500` | Max duration to wait for all airline APIs combined. |
-| `BEST_VALUE_PRICE_WEIGHT` | `0.6` | 60% preference towards cheaper flights in the ranking. |
-| `BEST_VALUE_DURATION_WEIGHT` | `0.4` | 40% preference towards faster flights in the ranking. |
+```bash
+# Server Configuration
+PORT=8008
+
+# Application Behavior
+MOCK_DATA_PATH=mock_provider
+MOCK_DATA_PROVIDER=["airasia_search_response.json", "batik_air_search_response.json", "garuda_indonesia_search_response.json", "lion_air_search_response.json"]
+
+# In Memory Cache Configuration
+CACHE_TTL_MINUTES=5
+CACHE_CLEANUP_MINUTES=10
+
+# Networking & Business Logic
+PROVIDER_TIMEOUT_MS=1500
+BEST_VALUE_PRICE_WEIGHT=0.6
+BEST_VALUE_DURATION_WEIGHT=0.4
+
+# Mock Provider Dynamic Simulation
+AIRASIA_DELAY_MS=100
+AIRASIA_FAILURE_RATE=10
+BATIK_AIR_DELAY_MS=200
+GARUDA_INDONESIA_DELAY_MS=50
+LION_AIR_DELAY_MS=150
+```
 
 ### Deployment & VPS (Docker)
 If you are deploying to a VPS, use the included Docker Compose for an instant production-ready setup:
