@@ -42,7 +42,7 @@ The system is fully tunable without code changes via the following environment v
 
 | Key | Default Value | Description |
 | :--- | :--- | :--- |
-| `PORT` | `8008` | The HTTP port the service will listen on. |
+| `PORT` | `8080` | The HTTP port the service will listen on. |
 | `MOCK_DATA_PATH` | `mock_provider` | Directory containing the mock airline response JSON files. |
 | `MOCK_DATA_PROVIDER` | `[...]` | JSON list of filenames used for mock responses across all providers. |
 | `CACHE_TTL_MINUTES` | `5` | Duration in minutes that search results remain in the memory cache. |
