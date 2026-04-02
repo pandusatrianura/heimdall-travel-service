@@ -196,8 +196,14 @@ curl -X POST http://localhost:8008/api/v1/search \
 ### Algorithm Complexity (The Matrix Factor)
 The aggregator transitioned from a linear search to an exhaustive **Matrix Search** (Cartesian Product), significantly increasing the breadth of discovery:
 - **Search Logic**: $Legs = \{Origins\} \times \{Destinations\} \times \{Dates\}$
-- **Fan-Out Complexity**: $O(O \cdot D \cdot T \cdot P)$ where $P$ is the number of providers. 
-- **Example**: Searching 2 origins, 2 destinations, and 2 dates across 4 providers triggers **64 concurrent upstream requests**.
+- **Fan-Out Complexity**: **$O(O \cdot D \cdot T \cdot P)$**
+  > [!NOTE]
+  > **Where**:
+  > - **O**: Number of distinct **Origins** provided in the request.
+  > - **D**: Number of distinct **Destinations** provided in the request.
+  > - **T**: Number of distinct **Travel Dates** (both departure and return dates).
+  > - **P**: Number of active **Upstream Providers** (Airline APIs) configured.
+- **Example**: Searching **2 origins**, **2 destinations**, and **2 dates** (with 2 returns) across **4 providers** triggers $16 \text{ legs} \cdot 4 \text{ providers} = \mathbf{64}$ concurrent upstream requests.
 
 ### High-Concurrency Scatter-Gather
 - **Network Bound**: Due to parallel Goroutine fan-out, the wall-clock time is governed by $O(\max(T_{provider}))$, effectively the latency of the slowest provider responding.
