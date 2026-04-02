@@ -194,16 +194,74 @@ curl -X POST http://localhost:8008/api/v1/search \
 ## 4. API Performance & Complexity
 
 ### Algorithm Complexity (The Matrix Factor)
-The aggregator transitioned from a linear search to an exhaustive **Matrix Search** (Cartesian Product), significantly increasing the breadth of discovery:
-- **Search Logic**: $Legs = \{Origins\} \times \{Destinations\} \times \{Dates\}$
-- **Fan-Out Complexity**: **$O(O \cdot D \cdot T \cdot P)$**
-  > [!NOTE]
-  > **Where**:
-  > - **O**: Number of distinct **Origins** provided in the request.
-  > - **D**: Number of distinct **Destinations** provided in the request.
-  > - **T**: Number of distinct **Travel Dates** (both departure and return dates).
-  > - **P**: Number of active **Upstream Providers** (Airline APIs) configured.
-- **Example**: Searching **2 origins**, **2 destinations**, and **2 dates** (with 2 returns) across **4 providers** triggers $16 \text{ legs} \cdot 4 \text{ providers} = \mathbf{64}$ concurrent upstream requests.
+The aggregator uses an exhaustive **Matrix Search** because the API accepts arrays for origins, destinations, and dates. A linear algorithm only works well for a single route and a single date. As soon as clients send multiple cities or multiple travel dates, the server must generate every valid independent flight leg or it will silently miss available combinations.
+
+At the implementation level, the request is expanded into outbound and inbound leg sets:
+
+- **Outbound Matrix**: $Legs_{out} = \{Origins\} \times \{Destinations\} \times \{DepartureDates\}$
+- **Inbound Matrix**: $Legs_{in} = \{Destinations\} \times \{Origins\} \times \{ReturnDates\}$
+- **Total Legs**: $Legs_{total} = Legs_{out} + Legs_{in}$
+- **Provider Fan-Out**: $Requests_{upstream} = Legs_{total} \times P$
+
+For a high-level complexity summary, this behaves like **$O(O \cdot D \cdot T \cdot P)$**.
+
+> [!NOTE]
+> **Where**:
+> - **O**: Number of distinct **Origins** provided in the request.
+> - **D**: Number of distinct **Destinations** provided in the request.
+> - **T**: Number of distinct travel dates being expanded.
+> - **P**: Number of active **Upstream Providers** (Airline APIs) configured.
+
+> [!IMPORTANT]
+> This implementation performs a **matrix leg search**, not a connected multi-city itinerary builder. It generates independent legs such as `CGK -> DPS` and `DPS -> CGK`, then queries every provider for each leg. It does **not** currently stitch `CGK -> DPS -> SIN` into a single composite itinerary object.
+
+#### Why Choose Matrix Search Instead of Linear Search?
+
+1. **Completeness of discovery**: If the client sends 2 origins, 2 destinations, and 2 dates, the service should evaluate all valid combinations, not just the first route or index-aligned pairs.
+2. **Single flexible API contract**: One implementation supports both simple one-way requests and larger matrix searches because a scalar input is just a matrix of size 1.
+3. **Less client-side orchestration**: Without matrix expansion, the client would need to generate dozens of separate requests and manually merge the responses.
+4. **Natural fit for concurrency**: Each `leg x provider` request is independent, so it maps directly to the scatter-gather goroutine model used by the aggregator.
+5. **Predictable performance profile**: Although request count grows multiplicatively, wall-clock latency stays closer to the slowest provider because the calls run concurrently.
+
+#### Worked Calculation Samples
+
+**Sample 1: Simple One-Way Search**
+
+- Inputs: 1 origin, 1 destination, 1 departure date, 0 return dates, 4 providers
+- Outbound legs: $1 \times 1 \times 1 = 1$
+- Inbound legs: $0$
+- Total legs: $1$
+- Upstream requests: $1 \times 4 = 4$
+
+**Sample 2: Round-Trip Search**
+
+- Inputs: 1 origin, 1 destination, 1 departure date, 1 return date, 4 providers
+- Outbound legs: $1 \times 1 \times 1 = 1$
+- Inbound legs: $1 \times 1 \times 1 = 1$
+- Total legs: $1 + 1 = 2$
+- Upstream requests: $2 \times 4 = 8$
+
+**Sample 3: Deep Matrix Search**
+
+- Inputs: 2 origins, 2 destinations, 2 departure dates, 2 return dates, 4 providers
+- Outbound legs: $2 \times 2 \times 2 = 8$
+- Inbound legs: $2 \times 2 \times 2 = 8$
+- Total legs: $8 + 8 = 16$
+- Upstream requests: $16 \times 4 = 64$
+
+This is the exact reasoning behind the example below:
+
+- **Example**: Searching **2 origins**, **2 destinations**, **2 departure dates**, and **2 return dates** across **4 providers** triggers $16 \text{ legs} \cdot 4 \text{ providers} = \mathbf{64}$ concurrent upstream requests.
+
+**Sample 4: Identity Route Filtering**
+
+- Inputs: Origins = `[CGK, DPS]`, Destinations = `[CGK, SIN]`, 1 departure date
+- Naive combinations: $2 \times 2 \times 1 = 4$
+- Generated pairs: `CGK -> CGK`, `CGK -> SIN`, `DPS -> CGK`, `DPS -> SIN`
+- Valid pairs after filtering identity routes: $3$
+- Upstream requests with 4 providers: $3 \times 4 = 12$
+
+This matters because the implementation intentionally skips routes where origin and destination are equal.
 
 ### High-Concurrency Scatter-Gather
 - **Network Bound**: Due to parallel Goroutine fan-out, the wall-clock time is governed by $O(\max(T_{provider}))$, effectively the latency of the slowest provider responding.
@@ -262,9 +320,10 @@ The `best_value` sort isn't a hardcoded guess. It uses dynamic normalization:
 Since different airlines return time in varied formats (ISO-8601, RFC-1123, or custom offsets), we use a dedicated `timeutil` parser. This normalizes everything to **UTC Unix Timestamps**, ensuring duration calculations and sorting are mathematically accurate regardless of the flight's origin timezone.
 
 ### 8. Multi-Leg Parallel Fan-Out
-To natively support complex queries like **Round-Trip** and **Multi-City** combinations, the traditional Search API has been augmented.
+To natively support complex queries like **Round-Trip** and **Matrix Leg Search** combinations, the traditional Search API has been augmented.
 * **Flexible Payload**: Clients can optionally supply arrays of locations and dates (`["CGK","DPS"]`), transparently mapped through advanced JSON unmarshalers (maintaining 100% backward compatibility for single-string payloads).
 * **Segment Resolving & Concurrency**: The request is mathematically partitioned into distinct flight legs (`SearchLeg`). Using a high-performance `Goroutine` fan-out mechanism, instead of executing requests sequentially, the aggregator multiplexes `NxM` requests asynchronously (`Legs x Providers`) into a single results channel with aggressive sub-second completion times.
+* **Current Scope Boundary**: These legs are independent route searches. The service does not yet combine three or more city hops into one stitched itinerary record with a single fare and connection graph.
 
 ### 9. Token-Bucket Rate Limiting (`golang.org/x/time/rate`)
 Airline APIs aggressively flag abusive pollers. Beyond the Circuit Breaker which handles failures, we explicitly prevent API bans by enforcing programmatic throttling.
@@ -463,7 +522,7 @@ k6 run --vus 20 --duration 30s scripts/load_test.js
 ## 8. System Requirements Specification
 
 ### 1 System purpose
-The Heimdall Travel Service shall provide a high-performance, concurrent flight aggregation API. Its primary purpose is to unify fragmented airline availability data, calculate complex itineraries (round-trip, multi-city), and rank flights by value and speed to serve client applications.
+The Heimdall Travel Service shall provide a high-performance, concurrent flight aggregation API. Its primary purpose is to unify fragmented airline availability data, calculate round-trip and matrix leg search combinations, and rank flights by value and speed to serve client applications.
 
 ### 2 System scope
 The scope encompasses the backend API logic handling HTTP traffic, managing outbound requests to mock airline providers (Garuda, Lion Air, Batik Air, AirAsia), parsing JSON, sanitizing mismatched timezone formats, and returning optimized JSON arrays. It does not include front-end UI components or physical persistent databases.
@@ -475,7 +534,7 @@ A purely RESTful Go backend leveraging isolated Goroutines to interface with par
 The system sits strictly between end-user client applications (e.g., mobile apps, Postman) and upstream external airline inventory APIs.
 
 #### 3.2 System functions
-- Parse single and multi-city payloads using flexible `FlexStringArray`.
+- Parse single-route and matrix-search payloads using flexible `FlexStringArray`.
 - Scatter-gather flight queries to upstream providers concurrently.
 - Protect upstream boundaries using Time-based Rate Limiting and Circuit Breaking.
 - Normalize timezones mathematically.
