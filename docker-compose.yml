@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  heimdall-travel-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: heimdall_travel_api
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    env_file:
+      - .env
+    environment:
+      - PORT=${PORT:-8080}
+      - MOCK_DATA_PATH=${MOCK_DATA_PATH:-mock_provider}
+    restart: unless-stopped

@@ -1,0 +1,245 @@
+{
+    "info": {
+        "_postman_id": "c1f7a0b3-f09d-476a-9b48-ef27976e1a47",
+        "name": "Heimdall Flight Aggregator Test Suite",
+        "description": "Comprehensive test suite covering Aggregation, Search & Filters, Price Comparison (Best Value), Data Inconsistency Resilience, and Provider Simulation tests.",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+        {
+            "name": "1. Basic Aggregation & Normalization",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"origin\": \"CGK\",\n  \"destination\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"passengers\": 1\n}"
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/v1/search",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "v1",
+                        "search"
+                    ]
+                },
+                "description": "Fetches flight data from multiple airlines, normalizes data into a common format, and correctly handles timezone shifts from WIB (+07:00) to WITA (+08:00) mathematically."
+            },
+            "response": []
+        },
+        {
+            "name": "2. Search Filter: Airlines & Max Price",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"origin\": \"CGK\",\n  \"destination\": \"DPS\",\n  \"departureDate\": \"2025-12-15\"\n}"
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/v1/search?airlines=Garuda Indonesia&max_price=2000000",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "v1",
+                        "search"
+                    ],
+                    "query": [
+                        {
+                            "key": "airlines",
+                            "value": "Garuda Indonesia"
+                        },
+                        {
+                            "key": "max_price",
+                            "value": "2000000"
+                        }
+                    ]
+                },
+                "description": "Filters the payload correctly requiring only Garuda flights under a specific price threshold."
+            },
+            "response": []
+        },
+        {
+            "name": "3. Search Filter: Direct Flights & Lowest Price",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"origin\": \"CGK\",\n  \"destination\": \"DPS\",\n  \"departureDate\": \"2025-12-15\"\n}"
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/v1/search?max_stops=0&sort_by=price_lowest",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "v1",
+                        "search"
+                    ],
+                    "query": [
+                        {
+                            "key": "max_stops",
+                            "value": "0"
+                        },
+                        {
+                            "key": "sort_by",
+                            "value": "price_lowest"
+                        }
+                    ]
+                },
+                "description": "Filters out all layovers and directly targets price lowest sorting mechanism, also verifying IDR currency formats."
+            },
+            "response": []
+        },
+        {
+            "name": "4. Sort: Best Value Algorithm",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"origin\": \"CGK\",\n  \"destination\": \"DPS\",\n  \"departureDate\": \"2025-12-15\"\n}"
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/v1/search?sort_by=best_value",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "v1",
+                        "search"
+                    ],
+                    "query": [
+                        {
+                            "key": "sort_by",
+                            "value": "best_value"
+                        }
+                    ]
+                },
+                "description": "Executes the bonus request feature parsing max bounds on price and duration globally and finding the mathematical sweet spot to rank flights."
+            },
+            "response": []
+        },
+        {
+            "name": "5. Sort: Departure/Duration Checks",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"origin\": \"CGK\",\n  \"destination\": \"DPS\",\n  \"departureDate\": \"2025-12-15\"\n}"
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/v1/search?sort_by=departure_earliest",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "v1",
+                        "search"
+                    ],
+                    "query": [
+                        {
+                            "key": "sort_by",
+                            "value": "departure_earliest"
+                        }
+                    ]
+                },
+                "description": "Sorts results according to departure timestamps explicitly."
+            },
+            "response": []
+        },
+        {
+            "name": "6. Complex Search: Round Trip",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"origin\": \"CGK\",\n  \"destination\": \"DPS\",\n  \"departureDate\": \"2025-12-15\",\n  \"returnDate\": \"2025-12-18\",\n  \"passengers\": 1,\n  \"cabinClass\": \"economy\"\n}"
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/v1/search",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "v1",
+                        "search"
+                    ]
+                },
+                "description": "Simulates a round-trip search. The backend decomposes this automatically into two separate flight legs and searches aggregators concurrently for both legs."
+            },
+            "response": []
+        },
+        {
+            "name": "7. Complex Search: Multi-City",
+            "request": {
+                "method": "POST",
+                "header": [
+                    {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                    }
+                ],
+                "body": {
+                    "mode": "raw",
+                    "raw": "{\n  \"origin\": [\"CGK\", \"DPS\"],\n  \"destination\": [\"DPS\", \"CGK\"],\n  \"departureDate\": [\"2025-12-15\", \"2025-12-18\"],\n  \"passengers\": 1,\n  \"cabinClass\": \"economy\"\n}"
+                },
+                "url": {
+                    "raw": "{{base_url}}/api/v1/search",
+                    "host": [
+                        "{{base_url}}"
+                    ],
+                    "path": [
+                        "api",
+                        "v1",
+                        "search"
+                    ]
+                },
+                "description": "Simulates a multi-city array payload. Bypasses the standard returnDate payload and allows explicitly defined leg arrays."
+            },
+            "response": []
+        }
+    ]
+}

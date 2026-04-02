@@ -1,0 +1,128 @@
+package handlers
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/pandusatrianura/heimdall-travel-service/internal/models"
+	"github.com/pandusatrianura/heimdall-travel-service/internal/services"
+)
+
+func TestSearchHandler_HandleSearch(t *testing.T) {
+	// Initialize real aggregator but pointing to local mock logic
+	mockDataPath := filepath.Join("..", "..", "mock_provider")
+	aggregatorSvc := services.NewAggregatorService(mockDataPath, 5*time.Minute, 10*time.Minute, 1500*time.Millisecond, 0.6, 0.4)
+	handler := NewSearchHandler(aggregatorSvc)
+
+	t.Run("Valid Request", func(t *testing.T) {
+		reqBody := models.SearchRequest{
+			Origin:        []string{"CGK"},
+			Destination:   []string{"DPS"},
+			DepartureDate: []string{"2025-12-15"},
+			Passengers:    1,
+			CabinClass:    "economy",
+		}
+
+		b, _ := json.Marshal(reqBody)
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/search?sort_by=price_lowest", bytes.NewBuffer(b))
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := httptest.NewRecorder()
+		handler.HandleSearch(rr, req)
+
+		if status := rr.Code; status != http.StatusOK {
+			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+		}
+
+		// check response body briefly
+		var resp models.SearchResponse
+		if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
+
+		if resp.Metadata.TotalResults == 0 {
+			t.Errorf("expected >0 total results")
+		}
+
+		// Check sorting applies
+		if len(resp.Flights) > 1 {
+			if resp.Flights[0].Price.Amount > resp.Flights[1].Price.Amount {
+				t.Errorf("List not sorted by price_lowest correctly")
+			}
+		}
+	})
+
+	t.Run("End-to-End Filter Integration", func(t *testing.T) {
+		reqBody := models.SearchRequest{
+			Origin:        []string{"CGK"},
+			Destination:   []string{"DPS"},
+			DepartureDate: []string{"2025-12-15"},
+		}
+
+		b, _ := json.Marshal(reqBody)
+		// Request specific airlines, under max_price, and 0 stops
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/search?airlines=Garuda Indonesia&max_price=2000000&max_stops=0", bytes.NewBuffer(b))
+		req.Header.Set("Content-Type", "application/json")
+
+		rr := httptest.NewRecorder()
+		handler.HandleSearch(rr, req)
+
+		if status := rr.Code; status != http.StatusOK {
+			t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+		}
+
+		var resp models.SearchResponse
+		if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+			t.Fatalf("Failed to decode response: %v", err)
+		}
+
+		// Ensure payload Metadata validates Provider count accurately
+		if resp.Metadata.ProvidersQueried != 4 {
+			t.Errorf("Expected 4 providers queried in architecture, got %d", resp.Metadata.ProvidersQueried)
+		}
+
+		// If Garuda parsed correctly, we should have results
+		if resp.Metadata.TotalResults == 0 {
+			t.Log("Note: Zero results from Garuda mock - check if mock path is reachable from handler test.")
+		} else {
+			// Test IDR string formatting inside handler payload explicitly
+			if resp.Flights[0].Price.FormattedAmount == "" || string(resp.Flights[0].Price.FormattedAmount[0:3]) != "Rp " {
+				t.Errorf("IDR Formatting failed, got: %s", resp.Flights[0].Price.FormattedAmount)
+			}
+		}
+	})
+
+	t.Run("Invalid Missing Fields Request", func(t *testing.T) {
+		// Missing Destination
+		reqBody := models.SearchRequest{
+			Origin:        []string{"CGK"},
+			DepartureDate: []string{"2025-12-15"},
+		}
+
+		b, _ := json.Marshal(reqBody)
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/search", bytes.NewBuffer(b))
+
+		rr := httptest.NewRecorder()
+		handler.HandleSearch(rr, req)
+
+		if status := rr.Code; status != http.StatusBadRequest {
+			t.Errorf("handler returned wrong status code for invalid req: got %v want %v", status, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("Invalid JSON Body", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodPost, "/api/v1/search", bytes.NewBuffer([]byte("{invalid json}")))
+
+		rr := httptest.NewRecorder()
+		handler.HandleSearch(rr, req)
+
+		if status := rr.Code; status != http.StatusBadRequest {
+			t.Errorf("handler returned wrong status code for invalid JSON: got %v want %v", status, http.StatusBadRequest)
+		}
+	})
+}

@@ -1,0 +1,15 @@
+{
+	"id": "e6f477cc-66ba-4848-bc38-3f5f3e9b11eb",
+	"name": "Heimdall Local Env",
+	"values": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "default",
+			"enabled": true
+		}
+	],
+	"_postman_variable_scope": "environment",
+	"_postman_exported_at": "2026-04-02T10:00:00.000Z",
+	"_postman_exported_using": "Postman/10.0.0"
+}
