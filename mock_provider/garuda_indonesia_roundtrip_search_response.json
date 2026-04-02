@@ -1,0 +1,67 @@
+{
+  "status": "success",
+  "flights": [
+    {
+      "flight_id": "GA401",
+      "airline": "Garuda Indonesia",
+      "airline_code": "GA",
+      "departure": {
+        "airport": "DPS",
+        "city": "Denpasar",
+        "time": "2025-12-18T10:30:00+08:00",
+        "terminal": "International"
+      },
+      "arrival": {
+        "airport": "CGK",
+        "city": "Jakarta",
+        "time": "2025-12-18T11:20:00+07:00",
+        "terminal": "3"
+      },
+      "duration_minutes": 110,
+      "stops": 0,
+      "aircraft": "Airbus A330-300",
+      "price": {
+        "amount": 1850000,
+        "currency": "IDR"
+      },
+      "available_seats": 25,
+      "fare_class": "economy",
+      "baggage": {
+        "carry_on": 7,
+        "checked": 30
+      },
+      "amenities": ["meal", "wifi", "entertainment"]
+    },
+    {
+      "flight_id": "GA601",
+      "airline": "Garuda Indonesia",
+      "airline_code": "GA",
+      "departure": {
+        "airport": "SIN",
+        "city": "Singapore",
+        "time": "2025-12-25T13:00:00+08:00",
+        "terminal": "4"
+      },
+      "arrival": {
+        "airport": "CGK",
+        "city": "Jakarta",
+        "time": "2025-12-25T13:50:00+07:00",
+        "terminal": "3"
+      },
+      "duration_minutes": 110,
+      "stops": 0,
+      "aircraft": "Boeing 737-800",
+      "price": {
+        "amount": 2800000,
+        "currency": "IDR"
+      },
+      "available_seats": 12,
+      "fare_class": "economy",
+      "baggage": {
+        "carry_on": 7,
+        "checked": 30
+      },
+      "amenities": ["meal", "wifi"]
+    }
+  ]
+}

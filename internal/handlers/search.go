@@ -38,8 +38,17 @@ func (h *SearchHandler) HandleSearch(w http.ResponseWriter, r *http.Request) {
 		"destination", req.Destination,
 		"departure_date", req.DepartureDate)
 
-	// Basic Validation
-	if len(req.Origin) == 0 || req.Origin[0] == "" || len(req.Destination) == 0 || req.Destination[0] == "" || len(req.DepartureDate) == 0 || req.DepartureDate[0] == "" {
+	// Basic Validation (Supporting aliases)
+	origins := req.Origin
+	if len(origins) == 0 {
+		origins = req.Origins
+	}
+	destinations := req.Destination
+	if len(destinations) == 0 {
+		destinations = req.Destinations
+	}
+
+	if len(origins) == 0 || len(destinations) == 0 || len(req.DepartureDate) == 0 {
 		slog.Warn("Validation failed: missing core fields")
 		http.Error(w, `{"error": "origin, destination, and departureDate are required"}`, http.StatusBadRequest)
 		return

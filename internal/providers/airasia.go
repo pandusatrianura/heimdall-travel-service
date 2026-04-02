@@ -64,79 +64,82 @@ func (p *AirAsiaProvider) SearchFlights(ctx context.Context, leg *models.SearchL
 		return nil, ctx.Err()
 	}
 
-	filename := ResolveMockFilename("airasia")
-	path := filepath.Join(p.MockDataPath, filename)
-	file, err := os.ReadFile(path)
-	if err != nil {
-		slog.ErrorContext(ctx, "Failed to open mock JSON file", "provider", p.Name(), "error", err)
-		return nil, fmt.Errorf("failed to read airasia mock file %s: %w", filename, err)
-	}
-
-	var raw airAsiaResponse
-	if err := json.Unmarshal(file, &raw); err != nil {
-		slog.ErrorContext(ctx, "Deserialization Error", "provider", p.Name(), "error", err)
-		return nil, fmt.Errorf("failed to parse airasia mock file: %w", err)
-	}
-
-	slog.InfoContext(ctx, "Successfully decoded source JSON", "provider", p.Name())
-
+	filenames := ResolveMockFilenames("airasia")
 	var results []models.Flight
-	for _, f := range raw.Flights {
-		if f.FromAirport != leg.Origin || f.ToAirport != leg.Destination {
+
+	for _, filename := range filenames {
+		path := filepath.Join(p.MockDataPath, filename)
+		file, err := os.ReadFile(path)
+		if err != nil {
+			slog.WarnContext(ctx, "Failed to open mock JSON file, skipping", "provider", p.Name(), "filename", filename, "error", err)
 			continue
 		}
-		// Date filter "2025-12-15"
-		if len(f.DepartTime) >= 10 && f.DepartTime[:10] != leg.DepartureDate {
+
+		var raw airAsiaResponse
+		if err := json.Unmarshal(file, &raw); err != nil {
+			slog.ErrorContext(ctx, "Deserialization Error", "provider", p.Name(), "filename", filename, "error", err)
 			continue
 		}
 
-		depTime, _ := timeutil.ParseTime(f.DepartTime, "")
-		arrTime, _ := timeutil.ParseTime(f.ArriveTime, "")
+		slog.DebugContext(ctx, "Processing source JSON", "provider", p.Name(), "filename", filename)
 
-		flight := models.Flight{
-			ID:           fmt.Sprintf("%s_%s", f.FlightCode, p.Name()),
-			Provider:     p.Name(),
-			Airline:      models.Airline{Name: "AirAsia", Code: f.FlightCode[:2]},
-			FlightNumber: f.FlightCode,
-			Departure: models.FlightPoint{
-				Airport:   f.FromAirport,
-				City:      "",
-				Datetime:  f.DepartTime,
-				Timestamp: depTime.Unix(),
-			},
-			Arrival: models.FlightPoint{
-				Airport:   f.ToAirport,
-				City:      "",
-				Datetime:  f.ArriveTime,
-				Timestamp: arrTime.Unix(),
-			},
-			Duration: models.Duration{
-				TotalMinutes: int(f.DurationHours * 60.0),
-				Formatted:    timeutil.FormatDuration(int(f.DurationHours * 60.0)),
-			},
-			Stops: func() int {
-				if !f.DirectFlight {
-					return 1
-				}
-				return 0
-			}(),
-			Price: models.Price{
-				Amount:   f.PriceIDR,
-				Currency: "IDR",
-			},
-			AvailableSeats: f.Seats,
-			CabinClass:     f.CabinClass,
-			Aircraft:       nil,
-			Amenities:      []string{},
-			Baggage: models.Baggage{
-				CarryOn: "Cabin baggage only, checked bags additional fee",
-				Checked: "Cabin baggage only, checked bags additional fee",
-			},
+		for _, f := range raw.Flights {
+			if f.FromAirport != leg.Origin || f.ToAirport != leg.Destination {
+				continue
+			}
+			// Date filter "2025-12-15"
+			if len(f.DepartTime) >= 10 && f.DepartTime[:10] != leg.DepartureDate {
+				continue
+			}
+
+			depTime, _ := timeutil.ParseTime(f.DepartTime, "")
+			arrTime, _ := timeutil.ParseTime(f.ArriveTime, "")
+
+			flight := models.Flight{
+				ID:           fmt.Sprintf("%s_%s", f.FlightCode, p.Name()),
+				Provider:     p.Name(),
+				Airline:      models.Airline{Name: "AirAsia", Code: f.FlightCode[:2]},
+				FlightNumber: f.FlightCode,
+				Departure: models.FlightPoint{
+					Airport:   f.FromAirport,
+					City:      "",
+					Datetime:  f.DepartTime,
+					Timestamp: depTime.Unix(),
+				},
+				Arrival: models.FlightPoint{
+					Airport:   f.ToAirport,
+					City:      "",
+					Datetime:  f.ArriveTime,
+					Timestamp: arrTime.Unix(),
+				},
+				Duration: models.Duration{
+					TotalMinutes: int(f.DurationHours * 60.0),
+					Formatted:    timeutil.FormatDuration(int(f.DurationHours * 60.0)),
+				},
+				Stops: func() int {
+					if !f.DirectFlight {
+						return 1
+					}
+					return 0
+				}(),
+				Price: models.Price{
+					Amount:   f.PriceIDR,
+					Currency: "IDR",
+				},
+				AvailableSeats: f.Seats,
+				CabinClass:     f.CabinClass,
+				Aircraft:       nil,
+				Amenities:      []string{},
+				Baggage: models.Baggage{
+					CarryOn: "Cabin baggage only, checked bags additional fee",
+					Checked: "Cabin baggage only, checked bags additional fee",
+				},
+			}
+
+			results = append(results, flight)
 		}
-
-		results = append(results, flight)
 	}
 
-	slog.InfoContext(ctx, "Provider mapping success", "provider", p.Name(), "found", len(results))
+	slog.InfoContext(ctx, "Provider mapping success", "provider", p.Name(), "total_found", len(results))
 	return results, nil
 }

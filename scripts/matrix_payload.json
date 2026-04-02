@@ -1,0 +1,7 @@
+{
+  "origins": ["CGK", "SUB"],
+  "destinations": ["DPS", "SIN"],
+  "departureDate": ["2025-12-15", "2025-12-20"],
+  "returnDate": ["2025-12-25", "2025-12-26"],
+  "passengers": 1
+}

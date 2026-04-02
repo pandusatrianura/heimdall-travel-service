@@ -14,10 +14,10 @@ var defaultMockFiles = []string{
 	"lion_air_search_response.json",
 }
 
-// ResolveMockFilename reads the MOCK_DATA_PROVIDER configuration and locates the accurate file
-func ResolveMockFilename(prefix string) string {
+// ResolveMockFilenames reads the MOCK_DATA_PROVIDER configuration and locates all matching files
+func ResolveMockFilenames(prefix string) []string {
 	rawEnv := os.Getenv("MOCK_DATA_PROVIDER")
-	
+
 	files := defaultMockFiles
 	if rawEnv != "" {
 		var envFiles []string
@@ -25,15 +25,20 @@ func ResolveMockFilename(prefix string) string {
 			files = envFiles
 		}
 	}
-	
+
 	prefixLower := strings.ToLower(prefix)
+	var matches []string
 	for _, f := range files {
 		if strings.HasPrefix(strings.ToLower(f), prefixLower) {
-			return f
+			matches = append(matches, f)
 		}
 	}
-	
-	return prefix + "_search_response.json"
+
+	if len(matches) == 0 {
+		return []string{prefix + "_search_response.json"}
+	}
+
+	return matches
 }
 
 // ResolveDelayMS dynamically looks up the <PREFIX>_DELAY_MS env variable.

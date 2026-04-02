@@ -3,14 +3,16 @@ import { check, sleep } from 'k6';
 import { SharedArray } from 'k6/data';
 
 // Load the search payload from the shared JSON file
-const payload = JSON.parse(open('./search_payload.json'));
+// Load the search payload (defaults to simple, can be overridden via PAYLOAD_FILE env)
+const payloadPath = __ENV.PAYLOAD_FILE || './scripts/search_payload.json';
+const payload = JSON.parse(open(payloadPath));
 
 export const options = {
     // Thresholds: Fail the test if more than 1% of requests fail or 
     // if the P95 latency exceeds 500ms
     thresholds: {
         http_req_failed: ['rate<0.01'],
-        http_req_duration: ['p(95)<500'],
+        http_req_duration: ['p(95)<1200'], // Increased for Matrix Search (64 concurrent upstream req)
     },
     // Scenarios are defined via CLI flags for flexibility, 
     // but these are the defaults:
@@ -24,7 +26,7 @@ export const options = {
 };
 
 export default function () {
-    const url = __ENV.BASE_URL || 'http://localhost:8080/api/v1/search';
+    const url = __ENV.BASE_URL || 'http://localhost:8008/api/v1/search';
     
     const params = {
         headers: {

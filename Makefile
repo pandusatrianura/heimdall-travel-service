@@ -57,3 +57,13 @@ k6-load:
 k6-stress:
 	@echo "==== Running k6 stress test ===="
 	k6 run --vus 50 --duration 2m scripts/load_test.js
+
+# Run k6 matrix load test (heavy 16-leg search)
+k6-matrix:
+	@echo "==== Running k6 matrix load test ===="
+	PAYLOAD_FILE=./matrix_payload.json k6 run --vus 10 --duration 30s scripts/load_test.js
+
+# Run k6 matrix stress test (heavy 16-leg search)
+k6-matrix-stress:
+	@echo "==== Running k6 matrix stress test ===="
+	PAYLOAD_FILE=./matrix_payload.json k6 run --vus 30 --duration 1m scripts/load_test.js

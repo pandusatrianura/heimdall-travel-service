@@ -27,9 +27,11 @@ func (fsa *FlexStringArray) UnmarshalJSON(data []byte) error {
 // SearchRequest represents the incoming JSON request
 type SearchRequest struct {
 	Origin        FlexStringArray `json:"origin"`
+	Origins       FlexStringArray `json:"origins,omitempty"`
 	Destination   FlexStringArray `json:"destination"`
+	Destinations  FlexStringArray `json:"destinations,omitempty"`
 	DepartureDate FlexStringArray `json:"departureDate"`
-	ReturnDate    string          `json:"returnDate,omitempty"` // for simple round trips
+	ReturnDate    FlexStringArray `json:"returnDate,omitempty"` // for simple round trips or matrix search
 	Passengers    int             `json:"passengers"`
 	CabinClass    string          `json:"cabinClass"`
 
@@ -51,65 +53,64 @@ type SearchLeg struct {
 // GetLegs processes the incoming parameters and returns a list of individual flight segments.
 // It throws an error if multi-city locations/dates are mismatched, solving the 3-origins/1-date problem.
 func (r *SearchRequest) GetLegs() ([]SearchLeg, error) {
-	lenO := len(r.Origin)
-	lenD := len(r.Destination)
+	// Consolidate aliases
+	origins := r.Origin
+	if len(origins) == 0 {
+		origins = r.Origins
+	}
+	destinations := r.Destination
+	if len(destinations) == 0 {
+		destinations = r.Destinations
+	}
+
+	lenO := len(origins)
+	lenD := len(destinations)
 	lenDates := len(r.DepartureDate)
 
 	if lenO == 0 || lenD == 0 || lenDates == 0 {
 		return nil, fmt.Errorf("origin, destination, and departureDate are required")
 	}
 
-	// 1. Simple One-Way or Round-Trip:
-	if lenO == 1 && lenD == 1 {
-		var legs []SearchLeg
+	var legs []SearchLeg
 
-		// Optional: user might mistakenly send an array of 2 departure dates instead of ReturnDate
-		if lenDates > 1 {
-			legs = append(legs, SearchLeg{Origin: r.Origin[0], Destination: r.Destination[0], DepartureDate: r.DepartureDate[0]})
-			legs = append(legs, SearchLeg{Origin: r.Destination[0], Destination: r.Origin[0], DepartureDate: r.DepartureDate[1]}) // Assuming array means round trip
-		} else {
-			legs = append(legs, SearchLeg{Origin: r.Origin[0], Destination: r.Destination[0], DepartureDate: r.DepartureDate[0]})
-			if r.ReturnDate != "" {
-				legs = append(legs, SearchLeg{Origin: r.Destination[0], Destination: r.Origin[0], DepartureDate: r.ReturnDate})
+	// 1. Generate Outbound Matrix: Origin x Destination x Date
+	for _, o := range origins {
+		for _, d := range destinations {
+			if o == d {
+				continue // Skip identity routes
+			}
+			for _, date := range r.DepartureDate {
+				legs = append(legs, SearchLeg{
+					Origin:        o,
+					Destination:   d,
+					DepartureDate: date,
+				})
 			}
 		}
-
-		return legs, nil
 	}
 
-	// 2. Multi-City configuration
-	// Validate length of origins and destinations match
-	if lenO != lenD {
-		return nil, fmt.Errorf("length mismatch: provided %d origins but %d destinations", lenO, lenD)
-	}
-
-	// Validate dates match leg count
-	if lenDates != lenO {
-		return nil, fmt.Errorf("multi-city validation failed: provided %d legs but %d departure dates. Number of dates MUST match number of legs", lenO, lenDates)
-	}
-
-	var legs []SearchLeg
-	for i := 0; i < lenO; i++ {
-		legs = append(legs, SearchLeg{
-			Origin:        r.Origin[i],
-			Destination:   r.Destination[i],
-			DepartureDate: r.DepartureDate[i],
-		})
-	}
-
-	// 3. Optional: Add Circuit Return for Multi-City if ReturnDate is provided
-	if r.ReturnDate != "" {
-		// Basic chronolgical validation
-		lastLeg := legs[len(legs)-1]
-		if r.ReturnDate < lastLeg.DepartureDate {
-			return nil, fmt.Errorf("returnDate (%s) cannot be before last departureDate (%s)", r.ReturnDate, lastLeg.DepartureDate)
+	// 2. Generate Inbound Matrix: Destination x Origin x ReturnDate
+	for _, d := range destinations {
+		for _, o := range origins {
+			if d == o {
+				continue // Skip identity routes
+			}
+			for _, rDate := range r.ReturnDate {
+				// Basic chronological validation against first outbound date (simplified)
+				if rDate != "" && len(r.DepartureDate) > 0 && rDate < r.DepartureDate[0] {
+					continue
+				}
+				legs = append(legs, SearchLeg{
+					Origin:        d,
+					Destination:   o,
+					DepartureDate: rDate,
+				})
+			}
 		}
+	}
 
-		legs = append(legs, SearchLeg{
-			Origin:        r.Destination[lenD-1],
-			Destination:   r.Origin[0],
-			DepartureDate: r.ReturnDate,
-		})
+	if len(legs) == 0 {
+		return nil, fmt.Errorf("no valid flight legs generated from the given criteria")
 	}
 
 	return legs, nil
@@ -126,7 +127,7 @@ type SearchCriteria struct {
 	Origin        FlexStringArray `json:"origin"`
 	Destination   FlexStringArray `json:"destination"`
 	DepartureDate FlexStringArray `json:"departure_date"`
-	ReturnDate    string          `json:"return_date,omitempty"`
+	ReturnDate    FlexStringArray `json:"return_date,omitempty"`
 	Passengers    int             `json:"passengers"`
 	CabinClass    string          `json:"cabin_class"`
 }

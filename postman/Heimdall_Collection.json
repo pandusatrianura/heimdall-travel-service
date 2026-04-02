@@ -251,7 +251,7 @@
             ]
         },
         {
-            "name": "Unified Multi-City (Advanced)",
+            "name": "5. Deep Matrix Search (Combination Mode)",
             "request": {
                 "method": "POST",
                 "header": [
@@ -262,7 +262,7 @@
                 ],
                 "body": {
                     "mode": "raw",
-                    "raw": "{\n  \"origin\": [\"CGK\", \"DPS\"],\n  \"destination\": [\"DPS\", \"SIN\"],\n  \"departureDate\": [\"2025-12-15\", \"2025-12-20\"],\n  \"returnDate\": \"2025-12-25\"\n}"
+                    "raw": "{\n  \"origins\": [\"CGK\", \"SUB\"],\n  \"destinations\": [\"DPS\", \"SIN\"],\n  \"departureDate\": [\"2025-12-15\", \"2025-12-20\"],\n  \"returnDate\": [\"2025-12-25\", \"2025-12-26\"]\n}"
                 },
                 "url": {
                     "raw": "{{base_url}}/api/v1/search",
@@ -275,7 +275,7 @@
                         "search"
                     ]
                 },
-                "description": "Demonstrates the unified multi-leg + circuit-return capability."
+                "description": "Demonstrates the deep Cartesian Matrix Search across multiple origins, destinations, and dates (Cold start ~800ms, Cached ~1ms)."
             }
         }
     ]

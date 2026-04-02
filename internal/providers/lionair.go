@@ -90,92 +90,93 @@ func (p *LionAirProvider) SearchFlights(ctx context.Context, leg *models.SearchL
 		return nil, ctx.Err()
 	}
 
-	filename := ResolveMockFilename("lion_air")
-	path := filepath.Join(p.MockDataPath, filename)
-	file, err := os.ReadFile(path)
-	if err != nil {
-		slog.ErrorContext(ctx, "Failed to open mock JSON file", "provider", p.Name(), "error", err)
-		return nil, fmt.Errorf("failed to read lion air mock file %s: %w", filename, err)
-	}
-
-	var raw lionAirResponse
-	if err := json.Unmarshal(file, &raw); err != nil {
-		slog.ErrorContext(ctx, "Deserialization Error", "provider", p.Name(), "error", err)
-		return nil, fmt.Errorf("failed to parse lion air mock file: %w", err)
-	}
-
-	slog.InfoContext(ctx, "Successfully decoded source JSON", "provider", p.Name())
-
+	filenames := ResolveMockFilenames("lion_air")
 	var results []models.Flight
-	for _, f := range raw.Data.AvailableFlights {
-		// Filter by request criteria broadly
-		if f.Route.From.Code != leg.Origin || f.Route.To.Code != leg.Destination {
+
+	for _, filename := range filenames {
+		path := filepath.Join(p.MockDataPath, filename)
+		file, err := os.ReadFile(path)
+		if err != nil {
+			slog.WarnContext(ctx, "Failed to open mock JSON file, skipping", "provider", p.Name(), "filename", filename, "error", err)
 			continue
 		}
-		if len(f.Schedule.Departure) >= 10 && f.Schedule.Departure[:10] != leg.DepartureDate {
+
+		var raw lionAirResponse
+		if err := json.Unmarshal(file, &raw); err != nil {
+			slog.ErrorContext(ctx, "Deserialization Error", "provider", p.Name(), "filename", filename, "error", err)
 			continue
 		}
 
-		depTime, _ := timeutil.ParseTime(f.Schedule.Departure, f.Schedule.DepartureTimezone)
-		arrTime, _ := timeutil.ParseTime(f.Schedule.Arrival, f.Schedule.ArrivalTimezone)
+		slog.DebugContext(ctx, "Processing source JSON", "provider", p.Name(), "filename", filename)
 
-		// Formatting datetime safely as RFC3339 since Lion doesn't embed offset directly
-		depFormat := depTime.Format(time.RFC3339)
-		arrFormat := arrTime.Format(time.RFC3339)
+		for _, f := range raw.Data.AvailableFlights {
+			if f.Route.From.Code != leg.Origin || f.Route.To.Code != leg.Destination {
+				continue
+			}
+			if len(f.Schedule.Departure) >= 10 && f.Schedule.Departure[:10] != leg.DepartureDate {
+				continue
+			}
 
-		stops := f.StopCount
-		if stops == 0 && !f.IsDirect {
-			stops = 1 // default if not specified but is not direct
+			depTime, _ := timeutil.ParseTime(f.Schedule.Departure, f.Schedule.DepartureTimezone)
+			arrTime, _ := timeutil.ParseTime(f.Schedule.Arrival, f.Schedule.ArrivalTimezone)
+
+			depFormat := depTime.Format(time.RFC3339)
+			arrFormat := arrTime.Format(time.RFC3339)
+
+			stops := f.StopCount
+			if stops == 0 && !f.IsDirect {
+				stops = 1
+			}
+
+			aircraft := f.PlaneType
+			var amenities []string
+			if f.Services.WifiAvailable {
+				amenities = append(amenities, "wifi")
+			}
+			if f.Services.MealsIncluded {
+				amenities = append(amenities, "meal")
+			}
+
+			flight := models.Flight{
+				ID:           fmt.Sprintf("%s_%s", f.ID, p.Name()),
+				Provider:     p.Name(),
+				Airline:      models.Airline{Name: f.Carrier.Name, Code: f.Carrier.Iata},
+				FlightNumber: f.ID,
+				Departure: models.FlightPoint{
+					Airport:   f.Route.From.Code,
+					City:      f.Route.From.City,
+					Datetime:  depFormat,
+					Timestamp: depTime.Unix(),
+				},
+				Arrival: models.FlightPoint{
+					Airport:   f.Route.To.Code,
+					City:      f.Route.To.City,
+					Datetime:  arrFormat,
+					Timestamp: arrTime.Unix(),
+				},
+				Duration: models.Duration{
+					TotalMinutes: f.FlightTime,
+					Formatted:    timeutil.FormatDuration(f.FlightTime),
+				},
+				Stops: stops,
+				Price: models.Price{
+					Amount:   f.Pricing.Total,
+					Currency: f.Pricing.Currency,
+				},
+				AvailableSeats: f.SeatsLeft,
+				CabinClass:     f.Pricing.FareType,
+				Aircraft:       &aircraft,
+				Amenities:      amenities,
+				Baggage: models.Baggage{
+					CarryOn: f.Services.BaggageAllowance.Cabin,
+					Checked: f.Services.BaggageAllowance.Hold,
+				},
+			}
+
+			results = append(results, flight)
 		}
-
-		aircraft := f.PlaneType
-		var amenities []string
-		if f.Services.WifiAvailable {
-			amenities = append(amenities, "wifi")
-		}
-		if f.Services.MealsIncluded {
-			amenities = append(amenities, "meal")
-		}
-
-		flight := models.Flight{
-			ID:           fmt.Sprintf("%s_%s", f.ID, p.Name()),
-			Provider:     p.Name(),
-			Airline:      models.Airline{Name: f.Carrier.Name, Code: f.Carrier.Iata},
-			FlightNumber: f.ID,
-			Departure: models.FlightPoint{
-				Airport:   f.Route.From.Code,
-				City:      f.Route.From.City,
-				Datetime:  depFormat,
-				Timestamp: depTime.Unix(),
-			},
-			Arrival: models.FlightPoint{
-				Airport:   f.Route.To.Code,
-				City:      f.Route.To.City,
-				Datetime:  arrFormat,
-				Timestamp: arrTime.Unix(),
-			},
-			Duration: models.Duration{
-				TotalMinutes: f.FlightTime,
-				Formatted:    timeutil.FormatDuration(f.FlightTime),
-			},
-			Stops: stops,
-			Price: models.Price{
-				Amount:   f.Pricing.Total,
-				Currency: f.Pricing.Currency,
-			},
-			AvailableSeats: f.SeatsLeft,
-			CabinClass:     f.Pricing.FareType,
-			Aircraft:       &aircraft,
-			Amenities:      amenities,
-			Baggage: models.Baggage{
-				CarryOn: f.Services.BaggageAllowance.Cabin,
-				Checked: f.Services.BaggageAllowance.Hold,
-			},
-		}
-
-		results = append(results, flight)
 	}
 
-	slog.InfoContext(ctx, "Provider mapping success", "provider", p.Name(), "found", len(results))
+	slog.InfoContext(ctx, "Provider mapping success", "provider", p.Name(), "total_found", len(results))
 	return results, nil
 }
