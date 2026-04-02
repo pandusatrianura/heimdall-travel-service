@@ -109,8 +109,6 @@ curl -X POST http://localhost:8080/api/v1/search \
 ```
 *This example effectively searches for 3 legs: CGK→DPS, DPS→SIN, and SIN→CGK.*
 
-
-
 ---
 
 ## 3. Core Requirement Mapping & Validation
