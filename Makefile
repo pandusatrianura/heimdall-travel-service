@@ -47,3 +47,13 @@ docker-up: check
 docker-down:
 	@echo "==== Stopping Docker Compose containers ===="
 	docker-compose down
+
+# Run k6 load test (requires k6 installation)
+k6-load:
+	@echo "==== Running k6 load test ===="
+	k6 run scripts/load_test.js
+
+# Run k6 stress test (requires k6 installation)
+k6-stress:
+	@echo "==== Running k6 stress test ===="
+	k6 run --vus 50 --duration 2m scripts/load_test.js

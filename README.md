@@ -27,6 +27,7 @@ This repository successfully implements the core requirements and handles produc
    cp .env.example .env
    ```
 4. **Configure your settings**: Edit `.env` to tune your search algorithm (timeouts, ranking weights, etc.).
+5. **Install k6 (Optional)**: If you plan to run advanced load tests, follow the [k6 Installation Guide](#5-advanced-performance-testing-k6).
 
 ### Running the Server
 The application initializes relative mock data streams from the root directory. Start the server from the project's root:
@@ -39,30 +40,22 @@ go run ./cmd/server/main.go
 ### Environment Configurations (.env)
 The system is fully tunable without code changes via the following environment variables:
 
-```bash
-# Server Configuration
-PORT=8008
+| Key | Default Value | Description |
+| :--- | :--- | :--- |
+| `PORT` | `8008` | The HTTP port the service will listen on. |
+| `MOCK_DATA_PATH` | `mock_provider` | Directory containing the mock airline response JSON files. |
+| `MOCK_DATA_PROVIDER` | `[...]` | JSON list of filenames used for mock responses across all providers. |
+| `CACHE_TTL_MINUTES` | `5` | Duration in minutes that search results remain in the memory cache. |
+| `CACHE_CLEANUP_MINUTES` | `10` | Interval in minutes for the background process to purge expired cache entries. |
+| `PROVIDER_TIMEOUT_MS` | `1500` | Maximum time to wait for a provider response before timing out. |
+| `BEST_VALUE_PRICE_WEIGHT` | `0.6` | Weight (0 to 1.0) applied to price in the "Best Value" ranking algorithm. |
+| `BEST_VALUE_DURATION_WEIGHT` | `0.4` | Weight (0 to 1.0) applied to flight duration in the ranking algorithm. |
+| `AIRASIA_DELAY_MS` | `100` | Simulated network delay (latency) for the AirAsia provider. |
+| `AIRASIA_FAILURE_RATE` | `10` | Probability (0-100) of a simulated failure for the AirAsia provider. |
+| `BATIK_AIR_DELAY_MS` | `200` | Simulated network delay (latency) for the Batik Air provider. |
+| `GARUDA_INDONESIA_DELAY_MS` | `50` | Simulated network delay (latency) for the Garuda Indonesia provider. |
+| `LION_AIR_DELAY_MS` | `150` | Simulated network delay (latency) for the Lion Air provider. |
 
-# Application Behavior
-MOCK_DATA_PATH=mock_provider
-MOCK_DATA_PROVIDER=["airasia_search_response.json", "batik_air_search_response.json", "garuda_indonesia_search_response.json", "lion_air_search_response.json"]
-
-# In Memory Cache Configuration
-CACHE_TTL_MINUTES=5
-CACHE_CLEANUP_MINUTES=10
-
-# Networking & Business Logic
-PROVIDER_TIMEOUT_MS=1500
-BEST_VALUE_PRICE_WEIGHT=0.6
-BEST_VALUE_DURATION_WEIGHT=0.4
-
-# Mock Provider Dynamic Simulation
-AIRASIA_DELAY_MS=100
-AIRASIA_FAILURE_RATE=10
-BATIK_AIR_DELAY_MS=200
-GARUDA_INDONESIA_DELAY_MS=50
-LION_AIR_DELAY_MS=150
-```
 
 ### Deployment & VPS (Docker)
 If you are deploying to a VPS, use the included Docker Compose for an instant production-ready setup:
@@ -395,7 +388,58 @@ graph TD
 
 ---
 
-## 6. System Requirements Specification
+## 6. Advanced Performance Testing (k6)
+
+For high-concurrency validation and bottleneck analysis, we provide a **k6** test suite.
+
+### 1. Step-By-Step k6 Setup
+
+#### macOS (using Homebrew)
+```bash
+brew install k6
+```
+
+#### Linux (Ubuntu/Debian)
+```bash
+sudo gpg -k
+sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+sudo apt-get update
+sudo apt-get install k6
+```
+
+#### Windows (using Winget)
+```powershell
+winget install k6
+```
+
+### 2. Running Load Tests
+
+Start the server first, then in a separate terminal:
+
+**Option A: Basic Load Test (10 Users)**
+```bash
+make k6-load
+```
+
+**Option B: Stress Test (50 Users, 2 Minutes)**
+```bash
+make k6-stress
+```
+
+**Option C: Custom Parameter Run**
+```bash
+k6 run --vus 20 --duration 30s scripts/load_test.js
+```
+
+### 3. Interpreting Results
+- **`http_req_duration`**: Look at the `p(95)` value. It should stay below your `PROVIDER_TIMEOUT_MS`.
+- **`http_req_failed`**: Should be 0.00%. If failures appear, check if the Circuit Breaker has tripped in the server logs.
+- **`iterations`**: Total number of successful flight search cycles completed.
+
+---
+
+## 7. System Requirements Specification
 
 ### 1 System purpose
 The Heimdall Travel Service shall provide a high-performance, concurrent flight aggregation API. Its primary purpose is to unify fragmented airline availability data, calculate complex itineraries (round-trip, multi-city), and rank flights by value and speed to serve client applications.
