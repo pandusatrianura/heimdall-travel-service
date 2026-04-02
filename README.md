@@ -131,10 +131,11 @@ graph TD
     FilterSort -->|JSON Response| Client
 ```
 
-### Flow Diagram
+### Flowchart Diagram
 ```mermaid
 flowchart TD
-    A[Receive HTTP Request] --> B{Validate Payload}
+    Start([Start]) --> A[Receive HTTP Request]
+    A --> B{Validate Payload}
     B -- Invalid --> C[Return 400 ERROR]
     B -- Valid --> D[Generate Correlation ID]
     D --> E[Deconstruct into Legs]
@@ -149,6 +150,8 @@ flowchart TD
     L --> M[Calculate Best Value Score]
     M --> N[Sort Results]
     N --> O[Return HTTP 200 JSON]
+    O --> End([End])
+    C --> End
 ```
 
 ### Sequential Diagram
