@@ -114,7 +114,7 @@ graph TD
     Handler -->|SearchRequest Model| Aggregator[Aggregator Service]
     
     subgraph Core Concurrency Fan-Out
-        Aggregator -->|req.GetLegs()| Dispatcher{Goroutine Dispatcher}
+        Aggregator -->|"req.GetLegs()"| Dispatcher{Goroutine Dispatcher}
         Dispatcher -->|Leg 1..N| ProviderA[Garuda Provider]
         Dispatcher -->|Leg 1..N| ProviderB[Lion Air Provider]
         Dispatcher -->|Leg 1..N| ProviderC[Batik Air Provider]
@@ -216,15 +216,16 @@ classDiagram
 
 ### Use Case Diagram
 ```mermaid
-usecaseDiagram
-    actor User
-    actor ExternalSystem
+graph TD
+    User((User))
+    ExternalSystem((External System))
     
-    User --> (Search One-Way Flights)
-    User --> (Search Round-Trip Flights)
-    User --> (Filter by Airlines)
-    User --> (Sort by Best Value)
+    User -->|Search| UC1[Search One-Way Flights]
+    User -->|Search| UC2[Search Round-Trip Flights]
+    User -->|Filter| UC3[Filter by Airlines]
+    User -->|Sort| UC4[Sort by Best Value]
     
-    (Search One-Way Flights) .> (Aggregate Data) : <<includes>>
-    (Aggregate Data) --> ExternalSystem : API Fetch (Simulated)
+    UC1 -.->|Includes| UC5[Aggregate Data]
+    UC2 -.->|Includes| UC5
+    UC5 -->|API Fetch| ExternalSystem
 ```
