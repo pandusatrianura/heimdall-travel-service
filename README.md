@@ -519,8 +519,13 @@ $$
 Then the final `best_value` score is:
 
 $$
-score = ((\mathtt{BEST}\_\mathtt{VALUE}\_\mathtt{PRICE}\_\mathtt{WEIGHT}) \times normalizedPrice) + ((\mathtt{BEST}\_\mathtt{VALUE}\_\mathtt{DURATION}\_\mathtt{WEIGHT}) \times normalizedDuration)
+score = (wp \times normalizedPrice) + (wd \times normalizedDuration)
 $$
+
+where:
+
+- `wp = BEST_VALUE_PRICE_WEIGHT`
+- `wd = BEST_VALUE_DURATION_WEIGHT`
 
 Important meaning:
 
