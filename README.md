@@ -519,7 +519,7 @@ $$
 Then the final `best_value` score is:
 
 $$
-score = (\mathtt{BEST\_VALUE\_PRICE\_WEIGHT} \times normalizedPrice) + (\mathtt{BEST\_VALUE\_DURATION\_WEIGHT} \times normalizedDuration)
+score = ((\mathtt{BEST}\_\mathtt{VALUE}\_\mathtt{PRICE}\_\mathtt{WEIGHT}) \times normalizedPrice) + ((\mathtt{BEST}\_\mathtt{VALUE}\_\mathtt{DURATION}\_\mathtt{WEIGHT}) \times normalizedDuration)
 $$
 
 Important meaning:
