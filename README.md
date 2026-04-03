@@ -527,6 +527,35 @@ where:
 - `wp = BEST_VALUE_PRICE_WEIGHT`
 - `wd = BEST_VALUE_DURATION_WEIGHT`
 
+Concrete example from the current mock data:
+
+- `QZ7250` from [mock_provider/expected_result.json](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/mock_provider/expected_result.json) has `price = 485000` and `duration = 260` minutes.
+- `GA400` from [mock_provider/garuda_indonesia_search_response.json](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/mock_provider/garuda_indonesia_search_response.json) has `price = 1250000` and `duration = 110` minutes.
+- `JT650` from [mock_provider/lion_air_search_response.json](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/mock_provider/lion_air_search_response.json) has `price = 780000` and `duration = 230` minutes.
+
+If we rank those three flights together, the normalization inputs become:
+
+- `price = 780000` for `JT650`
+- `minPrice = 485000` from `QZ7250`
+- `maxPrice = 1250000` from `GA400`
+- `duration = 230` for `JT650`
+- `minDuration = 110` from `GA400`
+- `maxDuration = 260` from `QZ7250`
+
+So the real calculation would be:
+
+$$
+normalizedPrice = \frac{780000 - 485000}{1250000 - 485000} = \frac{295000}{765000} \approx 0.386
+$$
+
+$$
+normalizedDuration = \frac{230 - 110}{260 - 110} = \frac{120}{150} = 0.8
+$$
+
+$$
+score = (0.6 \times 0.386) + (0.4 \times 0.8) \approx 0.552
+$$
+
 Important meaning:
 
 - A **lower score is better**.
