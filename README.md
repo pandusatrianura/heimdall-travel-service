@@ -6,6 +6,27 @@ This repository successfully implements the core requirements and handles produc
 
 ---
 
+## Tech Stack & Libraries
+
+The service is built with a deliberately small Go stack so the runtime stays simple and easy to deploy.
+
+| Component | Used In This Repository | Why It Is Used |
+| :--- | :--- | :--- |
+| Go 1.26.1 | Core language and runtime | Implements the HTTP API, provider orchestration, concurrency, tests, and application lifecycle. |
+| `net/http` | API server and routing | Keeps the service lightweight by using the Go standard library for the web layer instead of a larger framework. |
+| `github.com/spf13/viper` | Configuration loading | Reads `.env` and environment variables into typed application config so deployment settings stay outside the code. |
+| `github.com/patrickmn/go-cache` | In-memory caching | Stores recent search results with TTL-based expiration to reduce repeated provider work and improve response times. |
+| `github.com/sony/gobreaker` | Resilience around providers | Adds circuit-breaker behavior so unstable providers do not repeatedly degrade the whole search flow. |
+| `golang.org/x/time/rate` | Rate limiting | Throttles provider calls and helps the aggregator simulate safer production-style outbound request control. |
+| `github.com/google/uuid` | Request and entity identifiers | Generates stable unique identifiers used in responses and internal processing. |
+| Docker / Docker Compose | Local and VPS deployment | Packages the service into a consistent container image for simple deployment and environment-based configuration. |
+| Postman | API exploration | Provides ready-to-use request collections for manual testing and behavior verification. |
+| k6 | Load and stress testing | Used by the provided scripts to measure throughput, latency percentiles, and concurrency behavior. |
+
+In addition to these libraries, the repository relies heavily on Go's standard packages such as `context`, `encoding/json`, `sync`, `time`, and `os/signal` for request scoping, payload normalization, concurrency, timing, and graceful shutdown.
+
+---
+
 ## 1. Setup & Run Instructions
 
 ### Prerequisites
