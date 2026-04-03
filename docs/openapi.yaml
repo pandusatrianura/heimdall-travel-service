@@ -25,14 +25,15 @@ info:
   - Flight X: normalized price `0.0`, normalized duration `1.0` -> score `0.4`
   - Flight Y: normalized price `1.0`, normalized duration `0.0` -> score `0.6`
 
-  Concrete mock-data example:
-  - `QZ7250` from `mock_provider/expected_result.json`: price `485000`, duration `260`
-  - `GA400` from `mock_provider/garuda_indonesia_search_response.json`: price `1250000`, duration `110`
-  - `JT650` from `mock_provider/lion_air_search_response.json`: price `780000`, duration `230`
-  - For `JT650`, `minPrice = 485000`, `maxPrice = 1250000`, `minDuration = 110`, `maxDuration = 260`
-  - `normalizedPrice = (780000 - 485000) / (1250000 - 485000) = 295000 / 765000 ~= 0.386`
-  - `normalizedDuration = (230 - 110) / (260 - 110) = 120 / 150 = 0.8`
-  - `score = (0.6 x 0.386) + (0.4 x 0.8) ~= 0.552`
+  Concrete mock-data example from `mock_provider/lion_air_search_response.json`:
+  - `JT740`: price `950000`, duration `105`
+  - `JT742`: price `890000`, duration `110`
+  - `JT650`: price `780000`, duration `230`
+  - `minPrice = 780000`, `maxPrice = 950000`, `minDuration = 105`, `maxDuration = 230`
+  - `JT740`: normalized price `1.0`, normalized duration `0.0`, score `0.6`
+  - `JT742`: normalized price `110000 / 170000 ~= 0.647`, normalized duration `5 / 125 = 0.04`, score `~= 0.404`
+  - `JT650`: normalized price `0.0`, normalized duration `1.0`, score `0.4`
+  - Final order: `JT650`, `JT742`, `JT740`
 
   Lower score ranks higher, so with the default weights Flight X wins because the algorithm is slightly more price-sensitive than duration-sensitive.
 servers:
@@ -77,14 +78,12 @@ paths:
             - `BEST_VALUE_PRICE_WEIGHT = 0.6`: price contributes 60% of the final score
             - `BEST_VALUE_DURATION_WEIGHT = 0.4`: duration contributes 40% of the final score
 
-            Concrete mock-data example:
-            - `QZ7250`: price `485000`, duration `260`
-            - `GA400`: price `1250000`, duration `110`
-            - `JT650`: price `780000`, duration `230`
-            - For `JT650`, `minPrice = 485000`, `maxPrice = 1250000`, `minDuration = 110`, `maxDuration = 260`
-            - `normalizedPrice ~= 0.386`
-            - `normalizedDuration = 0.8`
-            - `score ~= 0.552`
+            Concrete mock-data example from `mock_provider/lion_air_search_response.json`:
+            - `JT740`: price `950000`, duration `105`, score `0.6`
+            - `JT742`: price `890000`, duration `110`, score `~= 0.404`
+            - `JT650`: price `780000`, duration `230`, score `0.4`
+            - Using `minPrice = 780000`, `maxPrice = 950000`, `minDuration = 105`, `maxDuration = 230`
+            - Final order: `JT650`, `JT742`, `JT740`
 
             This default makes the ranking slightly more price-sensitive than duration-sensitive, so a meaningfully cheaper flight can still outrank a somewhat faster one.
         - in: query

@@ -527,34 +527,68 @@ where:
 - `wp = BEST_VALUE_PRICE_WEIGHT`
 - `wd = BEST_VALUE_DURATION_WEIGHT`
 
-Concrete example from the current mock data:
+Concrete example from [mock_provider/lion_air_search_response.json](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/mock_provider/lion_air_search_response.json):
 
-- `QZ7250` from [mock_provider/expected_result.json](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/mock_provider/expected_result.json) has `price = 485000` and `duration = 260` minutes.
-- `GA400` from [mock_provider/garuda_indonesia_search_response.json](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/mock_provider/garuda_indonesia_search_response.json) has `price = 1250000` and `duration = 110` minutes.
-- `JT650` from [mock_provider/lion_air_search_response.json](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/mock_provider/lion_air_search_response.json) has `price = 780000` and `duration = 230` minutes.
+- `JT740`: `price = 950000`, `duration = 105` minutes
+- `JT742`: `price = 890000`, `duration = 110` minutes
+- `JT650`: `price = 780000`, `duration = 230` minutes
 
-If we rank those three flights together, the normalization inputs become:
+For those three results, the normalization boundaries are:
 
-- `price = 780000` for `JT650`
-- `minPrice = 485000` from `QZ7250`
-- `maxPrice = 1250000` from `GA400`
-- `duration = 230` for `JT650`
-- `minDuration = 110` from `GA400`
-- `maxDuration = 260` from `QZ7250`
+- `minPrice = 780000`
+- `maxPrice = 950000`
+- `minDuration = 105`
+- `maxDuration = 230`
 
-So the real calculation would be:
+Then each result gets its own score:
 
-$$
-normalizedPrice = \frac{780000 - 485000}{1250000 - 485000} = \frac{295000}{765000} \approx 0.386
-$$
+**JT740**
 
 $$
-normalizedDuration = \frac{230 - 110}{260 - 110} = \frac{120}{150} = 0.8
+normalizedPrice = \frac{950000 - 780000}{950000 - 780000} = 1.0
 $$
 
 $$
-score = (0.6 \times 0.386) + (0.4 \times 0.8) \approx 0.552
+normalizedDuration = \frac{105 - 105}{230 - 105} = 0.0
 $$
+
+$$
+score = (0.6 \times 1.0) + (0.4 \times 0.0) = 0.6
+$$
+
+**JT742**
+
+$$
+normalizedPrice = \frac{890000 - 780000}{950000 - 780000} = \frac{110000}{170000} \approx 0.647
+$$
+
+$$
+normalizedDuration = \frac{110 - 105}{230 - 105} = \frac{5}{125} = 0.04
+$$
+
+$$
+score = (0.6 \times 0.647) + (0.4 \times 0.04) \approx 0.404
+$$
+
+**JT650**
+
+$$
+normalizedPrice = \frac{780000 - 780000}{950000 - 780000} = 0.0
+$$
+
+$$
+normalizedDuration = \frac{230 - 105}{230 - 105} = 1.0
+$$
+
+$$
+score = (0.6 \times 0.0) + (0.4 \times 1.0) = 0.4
+$$
+
+So the `best_value` order for this sample file is:
+
+1. `JT650` with score `0.4`
+2. `JT742` with score `0.404`
+3. `JT740` with score `0.6`
 
 Important meaning:
 
