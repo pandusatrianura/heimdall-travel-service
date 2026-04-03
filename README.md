@@ -340,6 +340,19 @@ For a high-level summary, the request fan-out now behaves like **$O(N \cdot P)$*
 - Total legs: $1$
 - Upstream requests: $1 \times 4 = 4$
 
+Sample payload:
+
+```json
+{
+  "origins": "CGK",
+  "destinations": "DPS",
+  "departureDate": "2025-12-15",
+  "returnDate": null,
+  "passengers": 1,
+  "cabinClass": "economy"
+}
+```
+
 **Sample 2: Round-Trip Search**
 
 - Inputs: 1 trip item, 1 return date, 4 providers
@@ -348,6 +361,19 @@ For a high-level summary, the request fan-out now behaves like **$O(N \cdot P)$*
 - Total legs: $1 + 1 = 2$
 - Upstream requests: $2 \times 4 = 8$
 
+Sample payload:
+
+```json
+{
+  "origins": "CGK",
+  "destinations": "DPS",
+  "departureDate": "2025-12-15",
+  "returnDate": "2025-12-18",
+  "passengers": 1,
+  "cabinClass": "economy"
+}
+```
+
 **Sample 3: Positional Multi-Trip Search**
 
 - Inputs: 2 trip items, both round-trip, 4 providers
@@ -355,6 +381,19 @@ For a high-level summary, the request fan-out now behaves like **$O(N \cdot P)$*
 - Inbound legs: $2$
 - Total legs: $2 + 2 = 4$
 - Upstream requests: $4 \times 4 = 16$
+
+Sample payload:
+
+```json
+{
+  "origins": ["CGK", "SUB"],
+  "destinations": ["DPS", "SIN"],
+  "departureDate": ["2025-12-15", "2025-12-20"],
+  "returnDate": ["2025-12-25", "2025-12-26"],
+  "passengers": 1,
+  "cabinClass": "economy"
+}
+```
 
 This is the exact reasoning behind the example below:
 
@@ -368,11 +407,36 @@ This is the exact reasoning behind the example below:
 - Total legs: $3$
 - Upstream requests: $3 \times 4 = 12$
 
+Sample payload:
+
+```json
+{
+  "origins": ["CGK", "SUB"],
+  "destinations": ["DPS", "SIN"],
+  "departureDate": ["2025-12-15", "2025-12-20"],
+  "returnDate": [null, "2025-12-26"],
+  "passengers": 1,
+  "cabinClass": "economy"
+}
+```
+
 **Sample 5: Identity Route Validation**
 
 - Inputs: `origins = ["CGK"]`, `destinations = ["CGK"]`, `departureDate = ["2025-12-15"]`
 - Result: `400 Bad Request`
 - Reason: the implementation rejects trip items where origin and destination are equal.
+
+Sample payload:
+
+```json
+{
+  "origins": ["CGK"],
+  "destinations": ["CGK"],
+  "departureDate": ["2025-12-15"],
+  "passengers": 1,
+  "cabinClass": "economy"
+}
+```
 
 ### High-Concurrency Scatter-Gather
 - **Network Bound**: Due to parallel Goroutine fan-out, the wall-clock time is governed by $O(\max(T_{provider}))$, effectively the latency of the slowest provider responding.
