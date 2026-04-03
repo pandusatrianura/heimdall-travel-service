@@ -38,6 +38,14 @@ func TestParseTime(t *testing.T) {
 			wantErr:  false,
 		},
 		{
+			name:     "No offset and no location defaults to UTC parsing",
+			timeStr:  "2025-12-15T05:30:00",
+			locName:  "",
+			wantYear: 2025,
+			wantHour: 5,
+			wantErr:  false,
+		},
+		{
 			name:    "Invalid format",
 			timeStr: "15-12-2025 04:45:00",
 			locName: "",

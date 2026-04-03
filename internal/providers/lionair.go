@@ -11,6 +11,7 @@ import (
 
 	"github.com/pandusatrianura/heimdall-travel-service/internal/models"
 	"github.com/pandusatrianura/heimdall-travel-service/internal/pkg/timeutil"
+	"github.com/pandusatrianura/heimdall-travel-service/internal/pkg/utils"
 )
 
 type LionAirProvider struct {
@@ -81,7 +82,7 @@ func (p *LionAirProvider) SearchFlights(ctx context.Context, leg *models.SearchL
 	slog.InfoContext(ctx, "Beginning Provider search", "provider", p.Name(), "origin", leg.Origin, "destination", leg.Destination)
 
 	// Simulate latency (100-300ms)
-	delayMs := ResolveDelayMS("lion_air", 150)
+	delayMs := utils.ResolveDelayMS("lion_air", 150)
 	delay := time.Duration(delayMs) * time.Millisecond
 	select {
 	case <-time.After(delay):
@@ -90,7 +91,7 @@ func (p *LionAirProvider) SearchFlights(ctx context.Context, leg *models.SearchL
 		return nil, ctx.Err()
 	}
 
-	filenames := ResolveMockFilenames("lion_air")
+	filenames := utils.ResolveMockFilenames("lion_air")
 	var results []models.Flight
 
 	for _, filename := range filenames {

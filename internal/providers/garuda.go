@@ -11,6 +11,7 @@ import (
 
 	"github.com/pandusatrianura/heimdall-travel-service/internal/models"
 	"github.com/pandusatrianura/heimdall-travel-service/internal/pkg/timeutil"
+	"github.com/pandusatrianura/heimdall-travel-service/internal/pkg/utils"
 )
 
 type GarudaProvider struct {
@@ -67,7 +68,7 @@ func (p *GarudaProvider) SearchFlights(ctx context.Context, leg *models.SearchLe
 	slog.InfoContext(ctx, "Beginning Provider search", "provider", p.Name(), "origin", leg.Origin, "destination", leg.Destination)
 
 	// Simulate 50-100ms delay per requirements
-	delayMs := ResolveDelayMS("garuda_indonesia", 50)
+	delayMs := utils.ResolveDelayMS("garuda_indonesia", 50)
 	delay := time.Duration(delayMs) * time.Millisecond
 
 	select {
@@ -76,7 +77,7 @@ func (p *GarudaProvider) SearchFlights(ctx context.Context, leg *models.SearchLe
 		return nil, ctx.Err()
 	}
 
-	filenames := ResolveMockFilenames("garuda_indonesia")
+	filenames := utils.ResolveMockFilenames("garuda_indonesia")
 	var results []models.Flight
 
 	for _, filename := range filenames {

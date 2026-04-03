@@ -12,6 +12,7 @@ import (
 
 	"github.com/pandusatrianura/heimdall-travel-service/internal/models"
 	"github.com/pandusatrianura/heimdall-travel-service/internal/pkg/timeutil"
+	"github.com/pandusatrianura/heimdall-travel-service/internal/pkg/utils"
 )
 
 type AirAsiaProvider struct {
@@ -49,14 +50,14 @@ type airasiaFlight struct {
 func (p *AirAsiaProvider) SearchFlights(ctx context.Context, leg *models.SearchLeg) ([]models.Flight, error) {
 	slog.InfoContext(ctx, "Beginning Provider search", "provider", p.Name(), "origin", leg.Origin, "destination", leg.Destination)
 
-	failureRate := ResolveFailureRate("airasia", 10)
+	failureRate := utils.ResolveFailureRate("airasia", 10)
 	if rand.Intn(100) < failureRate {
 		slog.WarnContext(ctx, "Simulated provider failure", "provider", p.Name())
 		return nil, fmt.Errorf("airasia internal server error (simulated)")
 	}
 
 	// Simulate latency via dynamic config
-	delayMs := ResolveDelayMS("airasia", 100)
+	delayMs := utils.ResolveDelayMS("airasia", 100)
 	delay := time.Duration(delayMs) * time.Millisecond
 	select {
 	case <-time.After(delay):
@@ -64,7 +65,7 @@ func (p *AirAsiaProvider) SearchFlights(ctx context.Context, leg *models.SearchL
 		return nil, ctx.Err()
 	}
 
-	filenames := ResolveMockFilenames("airasia")
+	filenames := utils.ResolveMockFilenames("airasia")
 	var results []models.Flight
 
 	for _, filename := range filenames {

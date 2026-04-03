@@ -11,6 +11,7 @@ import (
 
 	"github.com/pandusatrianura/heimdall-travel-service/internal/models"
 	"github.com/pandusatrianura/heimdall-travel-service/internal/pkg/timeutil"
+	"github.com/pandusatrianura/heimdall-travel-service/internal/pkg/utils"
 )
 
 type BatikAirProvider struct {
@@ -57,7 +58,7 @@ func (p *BatikAirProvider) SearchFlights(ctx context.Context, leg *models.Search
 	slog.InfoContext(ctx, "Beginning Provider search", "provider", p.Name(), "origin", leg.Origin, "destination", leg.Destination)
 
 	// Simulate latency (200-400ms) delay per requirements (Slower response)
-	delayMs := ResolveDelayMS("batik_air", 200)
+	delayMs := utils.ResolveDelayMS("batik_air", 200)
 	delay := time.Duration(delayMs) * time.Millisecond
 	select {
 	case <-time.After(delay):
@@ -65,7 +66,7 @@ func (p *BatikAirProvider) SearchFlights(ctx context.Context, leg *models.Search
 		return nil, ctx.Err()
 	}
 
-	filenames := ResolveMockFilenames("batik_air")
+	filenames := utils.ResolveMockFilenames("batik_air")
 	var results []models.Flight
 
 	for _, filename := range filenames {

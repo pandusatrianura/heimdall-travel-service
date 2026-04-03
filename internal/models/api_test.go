@@ -1,6 +1,126 @@
 package models
 
-import "testing"
+import (
+	"encoding/json"
+	"reflect"
+	"testing"
+)
+
+func TestFlexStringArrayUnmarshalJSON(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    FlexStringArray
+		wantErr bool
+	}{
+		{name: "single string", input: `"CGK"`, want: FlexStringArray{"CGK"}},
+		{name: "array", input: `["CGK","DPS"]`, want: FlexStringArray{"CGK", "DPS"}},
+		{name: "empty array", input: `[]`, want: FlexStringArray{}},
+		{name: "null becomes single empty string", input: `null`, want: FlexStringArray{""}},
+		{name: "number is invalid", input: `123`, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got FlexStringArray
+			err := json.Unmarshal([]byte(tt.input), &got)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("json.Unmarshal() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("json.Unmarshal() = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFlexStringArrayMarshalJSON(t *testing.T) {
+	tests := []struct {
+		name  string
+		input FlexStringArray
+		want  string
+	}{
+		{name: "single element marshals as string", input: FlexStringArray{"CGK"}, want: `"CGK"`},
+		{name: "multiple elements marshal as array", input: FlexStringArray{"CGK", "DPS"}, want: `["CGK","DPS"]`},
+		{name: "empty marshals as empty array", input: FlexStringArray{}, want: `[]`},
+		{name: "nil marshals as empty array", input: nil, want: `[]`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := json.Marshal(tt.input)
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+
+			if string(got) != tt.want {
+				t.Fatalf("json.Marshal() = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNullableStringArrayUnmarshalJSON(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    NullableStringArray
+		wantErr bool
+	}{
+		{name: "null becomes nil", input: `null`, want: nil},
+		{name: "single string", input: `"2025-12-18"`, want: NullableStringArray{"2025-12-18"}},
+		{name: "array with nulls", input: `["2025-12-18",null,"2025-12-20"]`, want: NullableStringArray{"2025-12-18", "", "2025-12-20"}},
+		{name: "all nulls", input: `[null,null]`, want: NullableStringArray{"", ""}},
+		{name: "number is invalid", input: `123`, wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got NullableStringArray
+			err := json.Unmarshal([]byte(tt.input), &got)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("json.Unmarshal() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("json.Unmarshal() = %#v, want %#v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNullableStringArrayMarshalJSON(t *testing.T) {
+	tests := []struct {
+		name  string
+		input NullableStringArray
+		want  string
+	}{
+		{name: "single non empty marshals as string", input: NullableStringArray{"2025-12-18"}, want: `"2025-12-18"`},
+		{name: "single empty marshals as null", input: NullableStringArray{""}, want: `null`},
+		{name: "array with empty string marshals to null entry", input: NullableStringArray{"2025-12-18", "", "2025-12-20"}, want: `["2025-12-18",null,"2025-12-20"]`},
+		{name: "nil marshals as empty array", input: nil, want: `[]`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := json.Marshal(tt.input)
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+
+			if string(got) != tt.want {
+				t.Fatalf("json.Marshal() = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}
 
 func TestSearchRequest_GetLegs_PositionalTripItems(t *testing.T) {
 	t.Run("one way emits one outbound leg", func(t *testing.T) {
