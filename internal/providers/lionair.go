@@ -16,10 +16,16 @@ import (
 
 type LionAirProvider struct {
 	MockDataPath string
+	config       ProviderRuntimeConfig
+	mockFiles    []string
 }
 
 func NewLionAirProvider(mockDataPath string) *LionAirProvider {
-	return &LionAirProvider{MockDataPath: mockDataPath}
+	return NewLionAirProviderWithConfig(mockDataPath, ProviderRuntimeConfig{DelayMS: 150}, nil)
+}
+
+func NewLionAirProviderWithConfig(mockDataPath string, config ProviderRuntimeConfig, mockFiles []string) *LionAirProvider {
+	return &LionAirProvider{MockDataPath: mockDataPath, config: config, mockFiles: mockFiles}
 }
 
 func (p *LionAirProvider) Name() string {
@@ -82,7 +88,7 @@ func (p *LionAirProvider) SearchFlights(ctx context.Context, leg *models.SearchL
 	slog.InfoContext(ctx, "Beginning Provider search", "provider", p.Name(), "origin", leg.Origin, "destination", leg.Destination)
 
 	// Simulate latency (100-300ms)
-	delayMs := utils.ResolveDelayMS("lion_air", 150)
+	delayMs := p.config.DelayMS
 	delay := time.Duration(delayMs) * time.Millisecond
 	select {
 	case <-time.After(delay):
@@ -91,7 +97,7 @@ func (p *LionAirProvider) SearchFlights(ctx context.Context, leg *models.SearchL
 		return nil, ctx.Err()
 	}
 
-	filenames := utils.ResolveMockFilenames("lion_air")
+	filenames := utils.ResolveMockFilenames("lion_air", p.mockFiles)
 	var results []models.Flight
 
 	for _, filename := range filenames {

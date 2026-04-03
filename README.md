@@ -37,6 +37,26 @@ go run ./cmd/server/main.go
 ```
 *The service will start on port `8008` (default). You can change this in your `.env` file.*
 
+If port `8008` is already in use, free it first with the helper script or Make target:
+
+```bash
+sh ./scripts/kill_port_8008.sh
+make kill-port
+```
+
+By default this only stops processes that look like the Heimdall server. If another application is using port `8008`, the helper will refuse to kill it unless you explicitly force it:
+
+```bash
+sh ./scripts/kill_port_8008.sh --force
+make kill-port-force
+```
+
+To free port `8008` and start the service in one step:
+
+```bash
+make run-safe
+```
+
 ### Environment Configurations (.env)
 The system is fully tunable without code changes via the following environment variables:
 
@@ -67,6 +87,9 @@ This multi-stage build creates a minimal Alpine image (~20MB) and automatically 
 
 * `make check` - Full local CI suite (Linter, Security, and Unit Tests).
 * `make test` - Runs unit tests with `-race` and `-cover`.
+* `make kill-port` - Stops the Heimdall process using port `8008` if one is running.
+* `make kill-port-force` - Stops any process using port `8008`, even if it is not Heimdall.
+* `make run-safe` - Frees port `8008` with the safe helper, builds the binary, and starts the server.
 * `make docs-serve` - Serve the OpenAPI spec and local API docs viewers from the `docs/` folder.
 * **Load & Stress Testing** - Measure throughput and latency percentiles:
   ```bash
@@ -74,7 +97,7 @@ This multi-stage build creates a minimal Alpine image (~20MB) and automatically 
   ```
 
 ### API Documentation
-The formal API contract is available in [docs/openapi.yaml](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/docs/openapi.yaml).
+The formal API contract is available in [docs/openapi.yaml](docs/openapi.yaml).
 
 For a browsable local viewer, serve the `docs/` directory and open one of these pages:
 
@@ -83,8 +106,8 @@ make docs-serve
 ```
 
 Then open:
-- Swagger UI: [docs/swagger-ui.html](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/docs/swagger-ui.html)
-- Redoc: [docs/redoc.html](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/docs/redoc.html)
+- Swagger UI: [docs/swagger-ui.html](docs/swagger-ui.html)
+- Redoc: [docs/redoc.html](docs/redoc.html)
 
 When served locally, the pages are available at:
 - `http://localhost:8081/swagger-ui.html`
@@ -220,7 +243,7 @@ For a single trip item, `search_criteria.origin`, `destination`, and `departure_
 }
 ```
 
-This example is intentionally aligned with [mock_provider/expected_result.json](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/mock_provider/expected_result.json). For positional multi-trip requests, `search_criteria` is echoed as arrays and `flights[]` remains flat.
+This example is intentionally aligned with [mock_provider/expected_result.json](mock_provider/expected_result.json). For positional multi-trip requests, `search_criteria` is echoed as arrays and `flights[]` remains flat.
 
 *Identity routes (for example `CGK -> CGK`) are rejected with `400 Bad Request`.*
 
@@ -527,7 +550,7 @@ where:
 - `wp = BEST_VALUE_PRICE_WEIGHT`
 - `wd = BEST_VALUE_DURATION_WEIGHT`
 
-Concrete example from [mock_provider/lion_air_search_response.json](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/mock_provider/lion_air_search_response.json):
+Concrete example from [mock_provider/lion_air_search_response.json](mock_provider/lion_air_search_response.json):
 
 - `JT740`: `price = 950000`, `duration = 105` minutes
 - `JT742`: `price = 890000`, `duration = 110` minutes
@@ -948,7 +971,7 @@ The k6 script posts to `http://localhost:8008/api/v1/search` by default and vali
 
 ### 4. ApacheBench Stress Test
 
-For a quick repeatable stress test from the shell, this repository also includes [scripts/stress_test.sh](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/scripts/stress_test.sh), which wraps **ApacheBench (`ab`)**.
+For a quick repeatable stress test from the shell, this repository also includes [scripts/stress_test.sh](scripts/stress_test.sh), which wraps **ApacheBench (`ab`)**.
 
 Install ApacheBench if needed:
 
@@ -972,7 +995,7 @@ The script posts `scripts/search_payload.json` to `/api/v1/search` and prints th
 
 ### 5. Example Stress Test Result
 
-Sample output from [scripts/test_results.txt](/Users/pandusatrianurananda/Works/Space/go/src/github.com/pandusatrianura/heimdall-travel-service/scripts/test_results.txt):
+Sample output from [scripts/test_results.txt](scripts/test_results.txt):
 
 ```text
 Concurrency Level:      10

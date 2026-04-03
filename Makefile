@@ -1,4 +1,4 @@
-.PHONY: all test lint sec check install-tools build run docker-up docker-down docs-serve
+.PHONY: all test lint sec check install-tools build run run-safe kill-port kill-port-force docker-up docker-down docs-serve
 
 # Default target
 all: check build
@@ -30,6 +30,21 @@ build:
 # Run the binary locally natively
 run: build
 	@echo "==== Starting backend server ===="
+	./heimdall-server
+
+# Free port 8008 if a previous process is still bound to it
+kill-port:
+	@echo "==== Releasing port 8008 if needed ===="
+	sh ./scripts/kill_port_8008.sh
+
+# Force free port 8008 even if another non-Heimdall process is using it
+kill-port-force:
+	@echo "==== Force releasing port 8008 if needed ===="
+	sh ./scripts/kill_port_8008.sh --force
+
+# Free port 8008 first, then start the binary locally
+run-safe: kill-port build
+	@echo "==== Starting backend server after freeing port 8008 ===="
 	./heimdall-server
 
 # Install the necessary CI tools locally to your Go bin

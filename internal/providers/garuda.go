@@ -16,10 +16,16 @@ import (
 
 type GarudaProvider struct {
 	MockDataPath string
+	config       ProviderRuntimeConfig
+	mockFiles    []string
 }
 
 func NewGarudaProvider(mockDataPath string) *GarudaProvider {
-	return &GarudaProvider{MockDataPath: mockDataPath}
+	return NewGarudaProviderWithConfig(mockDataPath, ProviderRuntimeConfig{DelayMS: 50}, nil)
+}
+
+func NewGarudaProviderWithConfig(mockDataPath string, config ProviderRuntimeConfig, mockFiles []string) *GarudaProvider {
+	return &GarudaProvider{MockDataPath: mockDataPath, config: config, mockFiles: mockFiles}
 }
 
 func (p *GarudaProvider) Name() string {
@@ -68,7 +74,7 @@ func (p *GarudaProvider) SearchFlights(ctx context.Context, leg *models.SearchLe
 	slog.InfoContext(ctx, "Beginning Provider search", "provider", p.Name(), "origin", leg.Origin, "destination", leg.Destination)
 
 	// Simulate 50-100ms delay per requirements
-	delayMs := utils.ResolveDelayMS("garuda_indonesia", 50)
+	delayMs := p.config.DelayMS
 	delay := time.Duration(delayMs) * time.Millisecond
 
 	select {
@@ -77,7 +83,7 @@ func (p *GarudaProvider) SearchFlights(ctx context.Context, leg *models.SearchLe
 		return nil, ctx.Err()
 	}
 
-	filenames := utils.ResolveMockFilenames("garuda_indonesia")
+	filenames := utils.ResolveMockFilenames("garuda_indonesia", p.mockFiles)
 	var results []models.Flight
 
 	for _, filename := range filenames {

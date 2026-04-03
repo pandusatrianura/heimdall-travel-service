@@ -15,33 +15,26 @@ func testLeg() *models.SearchLeg {
 	return &models.SearchLeg{Origin: "CGK", Destination: "DPS", DepartureDate: "2025-12-15"}
 }
 
-func providerFactory(name string) func(string) FlightProvider {
+func providerFactory(name string) func(string, ProviderRuntimeConfig, []string) FlightProvider {
 	switch name {
 	case "Garuda Indonesia":
-		return func(mockDataPath string) FlightProvider { return NewGarudaProvider(mockDataPath) }
+		return func(mockDataPath string, cfg ProviderRuntimeConfig, mockFiles []string) FlightProvider {
+			return NewGarudaProviderWithConfig(mockDataPath, cfg, mockFiles)
+		}
 	case "Lion Air":
-		return func(mockDataPath string) FlightProvider { return NewLionAirProvider(mockDataPath) }
+		return func(mockDataPath string, cfg ProviderRuntimeConfig, mockFiles []string) FlightProvider {
+			return NewLionAirProviderWithConfig(mockDataPath, cfg, mockFiles)
+		}
 	case "Batik Air":
-		return func(mockDataPath string) FlightProvider { return NewBatikAirProvider(mockDataPath) }
+		return func(mockDataPath string, cfg ProviderRuntimeConfig, mockFiles []string) FlightProvider {
+			return NewBatikAirProviderWithConfig(mockDataPath, cfg, mockFiles)
+		}
 	case "AirAsia":
-		return func(mockDataPath string) FlightProvider { return NewAirAsiaProvider(mockDataPath) }
+		return func(mockDataPath string, cfg ProviderRuntimeConfig, mockFiles []string) FlightProvider {
+			return NewAirAsiaProviderWithConfig(mockDataPath, cfg, mockFiles)
+		}
 	default:
 		return nil
-	}
-}
-
-func envPrefixForProvider(name string) string {
-	switch name {
-	case "Garuda Indonesia":
-		return "GARUDA_INDONESIA"
-	case "Lion Air":
-		return "LION_AIR"
-	case "Batik Air":
-		return "BATIK_AIR"
-	case "AirAsia":
-		return "AIRASIA"
-	default:
-		return ""
 	}
 }
 
@@ -68,15 +61,11 @@ func TestAllProviders(t *testing.T) {
 		NewGarudaProvider(mockDataPath),
 		NewLionAirProvider(mockDataPath),
 		NewBatikAirProvider(mockDataPath),
-		NewAirAsiaProvider(mockDataPath),
+		NewAirAsiaProviderWithConfig(mockDataPath, ProviderRuntimeConfig{DelayMS: 100, FailureRate: 0}, nil),
 	}
 
 	for _, p := range providers {
 		t.Run(p.Name(), func(t *testing.T) {
-			if p.Name() == "AirAsia" {
-				t.Setenv("AIRASIA_FAILURE_RATE", "0")
-			}
-
 			// If it's AirAsia, we retry until it succeeds because it has a 10% failure rate
 			var flights []models.Flight
 			var err error
@@ -126,7 +115,7 @@ func TestProviderTimeout(t *testing.T) {
 	mockDataPath := filepath.Join("..", "..", "mock_provider")
 
 	// Batik Air simulates 200ms delay, giving 5ms timeout should fail
-	batik := NewBatikAirProvider(mockDataPath)
+	batik := NewBatikAirProviderWithConfig(mockDataPath, ProviderRuntimeConfig{DelayMS: 200}, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
 	defer cancel()
@@ -149,14 +138,7 @@ func TestProviders_HandleMissingFilesGracefully(t *testing.T) {
 	for _, name := range providerNames {
 		t.Run(name, func(t *testing.T) {
 			factory := providerFactory(name)
-			provider := factory(t.TempDir())
-
-			prefix := envPrefixForProvider(name)
-			t.Setenv("MOCK_DATA_PROVIDER", `["missing.json"]`)
-			t.Setenv(prefix+"_DELAY_MS", "0")
-			if name == "AirAsia" {
-				t.Setenv(prefix+"_FAILURE_RATE", "0")
-			}
+			provider := factory(t.TempDir(), ProviderRuntimeConfig{DelayMS: 0, FailureRate: 0}, []string{"missing.json"})
 
 			flights, err := provider.SearchFlights(context.Background(), testLeg())
 			if err != nil {
@@ -181,14 +163,7 @@ func TestProviders_HandleMalformedJSONGracefully(t *testing.T) {
 			}
 
 			factory := providerFactory(name)
-			provider := factory(tempDir)
-
-			prefix := envPrefixForProvider(name)
-			t.Setenv("MOCK_DATA_PROVIDER", `["`+filename+`"]`)
-			t.Setenv(prefix+"_DELAY_MS", "0")
-			if name == "AirAsia" {
-				t.Setenv(prefix+"_FAILURE_RATE", "0")
-			}
+			provider := factory(tempDir, ProviderRuntimeConfig{DelayMS: 0, FailureRate: 0}, []string{filename})
 
 			flights, err := provider.SearchFlights(context.Background(), testLeg())
 			if err != nil {
@@ -207,13 +182,7 @@ func TestProviders_RespectPreCancelledContext(t *testing.T) {
 	for _, name := range providerNames {
 		t.Run(name, func(t *testing.T) {
 			factory := providerFactory(name)
-			provider := factory(filepath.Join("..", "..", "mock_provider"))
-
-			prefix := envPrefixForProvider(name)
-			t.Setenv(prefix+"_DELAY_MS", "50")
-			if name == "AirAsia" {
-				t.Setenv(prefix+"_FAILURE_RATE", "0")
-			}
+			provider := factory(filepath.Join("..", "..", "mock_provider"), ProviderRuntimeConfig{DelayMS: 50, FailureRate: 0}, nil)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
@@ -230,9 +199,7 @@ func TestProviders_RespectPreCancelledContext(t *testing.T) {
 }
 
 func TestAirAsiaProvider_SimulatedFailureReturnsError(t *testing.T) {
-	provider := NewAirAsiaProvider(filepath.Join("..", "..", "mock_provider"))
-	t.Setenv("AIRASIA_FAILURE_RATE", "100")
-	t.Setenv("AIRASIA_DELAY_MS", "0")
+	provider := NewAirAsiaProviderWithConfig(filepath.Join("..", "..", "mock_provider"), ProviderRuntimeConfig{DelayMS: 0, FailureRate: 100}, nil)
 
 	_, err := provider.SearchFlights(context.Background(), testLeg())
 	if err == nil {

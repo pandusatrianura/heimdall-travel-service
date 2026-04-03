@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pandusatrianura/heimdall-travel-service/internal/models"
+	"github.com/pandusatrianura/heimdall-travel-service/internal/pkg/utils"
 	"github.com/pandusatrianura/heimdall-travel-service/internal/providers"
 	"github.com/patrickmn/go-cache"
 	"github.com/sony/gobreaker"
@@ -28,14 +29,32 @@ type AggregatorService struct {
 }
 
 func NewAggregatorService(mockDataPath string, ttl, cleanup time.Duration, providerTimeout time.Duration, pWeight, dWeight float64) *AggregatorService {
+	return NewAggregatorServiceWithProviderConfig(
+		mockDataPath,
+		ttl,
+		cleanup,
+		providerTimeout,
+		pWeight,
+		dWeight,
+		providers.RuntimeConfig{
+			MockDataFiles:   utils.DefaultMockFiles(),
+			AirAsia:         providers.ProviderRuntimeConfig{DelayMS: 100, FailureRate: 10},
+			BatikAir:        providers.ProviderRuntimeConfig{DelayMS: 200},
+			GarudaIndonesia: providers.ProviderRuntimeConfig{DelayMS: 50},
+			LionAir:         providers.ProviderRuntimeConfig{DelayMS: 150},
+		},
+	)
+}
+
+func NewAggregatorServiceWithProviderConfig(mockDataPath string, ttl, cleanup time.Duration, providerTimeout time.Duration, pWeight, dWeight float64, runtimeConfig providers.RuntimeConfig) *AggregatorService {
 	// Initialize cache with configured expiration and cleanup
 	c := cache.New(ttl, cleanup)
 
 	provs := []providers.FlightProvider{
-		providers.NewGarudaProvider(mockDataPath),
-		providers.NewLionAirProvider(mockDataPath),
-		providers.NewBatikAirProvider(mockDataPath),
-		providers.NewAirAsiaProvider(mockDataPath),
+		providers.NewGarudaProviderWithConfig(mockDataPath, runtimeConfig.GarudaIndonesia, runtimeConfig.MockDataFiles),
+		providers.NewLionAirProviderWithConfig(mockDataPath, runtimeConfig.LionAir, runtimeConfig.MockDataFiles),
+		providers.NewBatikAirProviderWithConfig(mockDataPath, runtimeConfig.BatikAir, runtimeConfig.MockDataFiles),
+		providers.NewAirAsiaProviderWithConfig(mockDataPath, runtimeConfig.AirAsia, runtimeConfig.MockDataFiles),
 	}
 
 	// Initialize Circuit Breakers and Rate Limiters for each provider

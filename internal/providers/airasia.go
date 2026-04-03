@@ -17,10 +17,16 @@ import (
 
 type AirAsiaProvider struct {
 	MockDataPath string
+	config       ProviderRuntimeConfig
+	mockFiles    []string
 }
 
 func NewAirAsiaProvider(mockDataPath string) *AirAsiaProvider {
-	return &AirAsiaProvider{MockDataPath: mockDataPath}
+	return NewAirAsiaProviderWithConfig(mockDataPath, ProviderRuntimeConfig{DelayMS: 100, FailureRate: 10}, nil)
+}
+
+func NewAirAsiaProviderWithConfig(mockDataPath string, config ProviderRuntimeConfig, mockFiles []string) *AirAsiaProvider {
+	return &AirAsiaProvider{MockDataPath: mockDataPath, config: config, mockFiles: mockFiles}
 }
 
 func (p *AirAsiaProvider) Name() string {
@@ -50,14 +56,14 @@ type airasiaFlight struct {
 func (p *AirAsiaProvider) SearchFlights(ctx context.Context, leg *models.SearchLeg) ([]models.Flight, error) {
 	slog.InfoContext(ctx, "Beginning Provider search", "provider", p.Name(), "origin", leg.Origin, "destination", leg.Destination)
 
-	failureRate := utils.ResolveFailureRate("airasia", 10)
+	failureRate := p.config.FailureRate
 	if rand.Intn(100) < failureRate {
 		slog.WarnContext(ctx, "Simulated provider failure", "provider", p.Name())
 		return nil, fmt.Errorf("airasia internal server error (simulated)")
 	}
 
 	// Simulate latency via dynamic config
-	delayMs := utils.ResolveDelayMS("airasia", 100)
+	delayMs := p.config.DelayMS
 	delay := time.Duration(delayMs) * time.Millisecond
 	select {
 	case <-time.After(delay):
@@ -65,7 +71,7 @@ func (p *AirAsiaProvider) SearchFlights(ctx context.Context, leg *models.SearchL
 		return nil, ctx.Err()
 	}
 
-	filenames := utils.ResolveMockFilenames("airasia")
+	filenames := utils.ResolveMockFilenames("airasia", p.mockFiles)
 	var results []models.Flight
 
 	for _, filename := range filenames {

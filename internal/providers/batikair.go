@@ -15,11 +15,17 @@ import (
 )
 
 type BatikAirProvider struct {
-	mockDataPath string
+	MockDataPath string
+	config       ProviderRuntimeConfig
+	mockFiles    []string
 }
 
 func NewBatikAirProvider(mockDataPath string) *BatikAirProvider {
-	return &BatikAirProvider{mockDataPath: mockDataPath}
+	return NewBatikAirProviderWithConfig(mockDataPath, ProviderRuntimeConfig{DelayMS: 200}, nil)
+}
+
+func NewBatikAirProviderWithConfig(mockDataPath string, config ProviderRuntimeConfig, mockFiles []string) *BatikAirProvider {
+	return &BatikAirProvider{MockDataPath: mockDataPath, config: config, mockFiles: mockFiles}
 }
 
 func (p *BatikAirProvider) Name() string {
@@ -58,7 +64,7 @@ func (p *BatikAirProvider) SearchFlights(ctx context.Context, leg *models.Search
 	slog.InfoContext(ctx, "Beginning Provider search", "provider", p.Name(), "origin", leg.Origin, "destination", leg.Destination)
 
 	// Simulate latency (200-400ms) delay per requirements (Slower response)
-	delayMs := utils.ResolveDelayMS("batik_air", 200)
+	delayMs := p.config.DelayMS
 	delay := time.Duration(delayMs) * time.Millisecond
 	select {
 	case <-time.After(delay):
@@ -66,11 +72,11 @@ func (p *BatikAirProvider) SearchFlights(ctx context.Context, leg *models.Search
 		return nil, ctx.Err()
 	}
 
-	filenames := utils.ResolveMockFilenames("batik_air")
+	filenames := utils.ResolveMockFilenames("batik_air", p.mockFiles)
 	var results []models.Flight
 
 	for _, filename := range filenames {
-		filePath := filepath.Join(p.mockDataPath, filename)
+		filePath := filepath.Join(p.MockDataPath, filename)
 		file, err := os.Open(filePath)
 		if err != nil {
 			slog.WarnContext(ctx, "Failed to open mock JSON file, skipping", "provider", p.Name(), "filename", filename, "error", err)
