@@ -427,6 +427,178 @@ The `best_value` sort isn't a hardcoded guess. It uses dynamic normalization:
 2. It calculates a normalized score (0.0 to 1.0) for every flight.
 3. It applies business weights (configurable via `.env`) to find the mathematical "Sweet Spot" between cost and speed.
 
+`best_value` means:
+
+- We do **not** automatically pick the cheapest flight.
+- We also do **not** automatically pick the fastest flight.
+- We try to pick the flight that gives the most reasonable trade-off between **price** and **travel time**.
+
+So if one flight is very cheap but much slower, and another flight is very fast but much more expensive, the algorithm tries to find the middle ground.
+
+#### How the Score Is Calculated
+
+Inside one search result set, every flight gets two normalized numbers:
+
+- **Normalized price**: how expensive this flight is compared to the cheapest and most expensive result in the same result set.
+- **Normalized duration**: how long this flight is compared to the fastest and slowest result in the same result set.
+
+The formula is:
+
+$$
+normalizedPrice = \frac{price - minPrice}{maxPrice - minPrice}
+$$
+
+$$
+normalizedDuration = \frac{duration - minDuration}{maxDuration - minDuration}
+$$
+
+Then the final `best_value` score is:
+
+$$
+score = (BEST\_VALUE\_PRICE\_WEIGHT \times normalizedPrice) + (BEST\_VALUE\_DURATION\_WEIGHT \times normalizedDuration)
+$$
+
+Important meaning:
+
+- A **lower score is better**.
+- Score `0.0` means "best possible inside this result set".
+- Higher scores mean the flight is relatively more expensive, slower, or both.
+
+#### What `BEST_VALUE_PRICE_WEIGHT=0.6` Means
+
+`BEST_VALUE_PRICE_WEIGHT=0.6` means the final ranking gives **60% importance to price**.
+
+This does **not** mean the system discounts the ticket price by 60%. It means price contributes a little more heavily than duration when calculating the final score.
+
+#### What `BEST_VALUE_DURATION_WEIGHT=0.4` Means
+
+`BEST_VALUE_DURATION_WEIGHT=0.4` means the final ranking gives **40% importance to duration**.
+
+This means duration still matters, but it matters slightly less than price in the default configuration.
+
+#### Why Choose `0.6` and `0.4`?
+
+The default choice is a practical product heuristic:
+
+- In most travel search scenarios, users are usually more sensitive to **price** than to a moderate time difference.
+- But duration still matters enough that the algorithm should avoid promoting a very cheap but clearly inconvenient flight too aggressively.
+- `0.6 / 0.4` keeps the ranking **price-led**, but not **price-only**.
+
+So the intention is:
+
+- **Price wins when the time difference is small**.
+- **Duration can still win when the cheaper option is much slower**.
+
+This is why the values sum to `1.0`: they behave like a simple weighting split between the two factors.
+
+These numbers are **defaults**, not absolute truths. If your business wants to optimize for faster travel over cheaper fares, you can change them, for example:
+
+- `0.8 / 0.2`: strongly price-focused
+- `0.5 / 0.5`: balanced equally
+- `0.3 / 0.7`: strongly duration-focused
+
+#### Worked Example
+
+Suppose one search returns these 3 flights:
+
+| Flight | Price | Duration |
+| :--- | :--- | :--- |
+| A | Rp 1,000,000 | 90 min |
+| B | Rp 1,200,000 | 100 min |
+| C | Rp 1,500,000 | 120 min |
+
+From these results:
+
+- `minPrice = 1,000,000`
+- `maxPrice = 1,500,000`
+- `minDuration = 90`
+- `maxDuration = 120`
+
+Now normalize each flight.
+
+**Flight A**
+
+$$
+normalizedPrice = \frac{1{,}000{,}000 - 1{,}000{,}000}{1{,}500{,}000 - 1{,}000{,}000} = 0.0
+$$
+
+$$
+normalizedDuration = \frac{90 - 90}{120 - 90} = 0.0
+$$
+
+$$
+score = (0.6 \times 0.0) + (0.4 \times 0.0) = 0.0
+$$
+
+**Flight B**
+
+$$
+normalizedPrice = \frac{1{,}200{,}000 - 1{,}000{,}000}{500{,}000} = 0.4
+$$
+
+$$
+normalizedDuration = \frac{100 - 90}{30} \approx 0.33
+$$
+
+$$
+score = (0.6 \times 0.4) + (0.4 \times 0.33) \approx 0.372
+$$
+
+**Flight C**
+
+$$
+normalizedPrice = \frac{1{,}500{,}000 - 1{,}000{,}000}{500{,}000} = 1.0
+$$
+
+$$
+normalizedDuration = \frac{120 - 90}{30} = 1.0
+$$
+
+$$
+score = (0.6 \times 1.0) + (0.4 \times 1.0) = 1.0
+$$
+
+Final ranking:
+
+1. **Flight A** with score `0.0`
+2. **Flight B** with score `0.372`
+3. **Flight C** with score `1.0`
+
+This is intuitive: Flight A is both cheapest and fastest, Flight C is both most expensive and slowest, and Flight B sits in the middle.
+
+#### Another Example: When a Faster Flight Can Lose
+
+Suppose there are only 2 flights:
+
+| Flight | Price | Duration |
+| :--- | :--- | :--- |
+| X | Rp 900,000 | 120 min |
+| Y | Rp 1,400,000 | 90 min |
+
+Then:
+
+- Flight X is cheapest but slower
+- Flight Y is fastest but more expensive
+
+Normalized scores become approximately:
+
+- Flight X: `price = 0.0`, `duration = 1.0`
+- Flight Y: `price = 1.0`, `duration = 0.0`
+
+With the default weights:
+
+$$
+score_X = (0.6 \times 0.0) + (0.4 \times 1.0) = 0.4
+$$
+
+$$
+score_Y = (0.6 \times 1.0) + (0.4 \times 0.0) = 0.6
+$$
+
+So **Flight X wins**, because the default business preference says a large price advantage is slightly more important than a moderate duration advantage.
+
+If your product wants the opposite behavior, you can raise `BEST_VALUE_DURATION_WEIGHT` and lower `BEST_VALUE_PRICE_WEIGHT`.
+
 ### 7. Timezone Disparity Resolution
 Since different airlines return time in varied formats (ISO-8601, RFC-1123, or custom offsets), we use a dedicated `timeutil` parser. This normalizes everything to **UTC Unix Timestamps**, ensuring duration calculations and sorting are mathematically accurate regardless of the flight's origin timezone.
 

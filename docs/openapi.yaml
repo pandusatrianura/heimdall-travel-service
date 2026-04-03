@@ -13,6 +13,19 @@ info:
     Responses always return one flat `flights[]` list.
     - For single-trip searches, `search_criteria.origin`, `destination`, and `departure_date` are serialized as scalar strings.
     - For positional multi-trip searches, those same fields are serialized as arrays to preserve index-based mapping.
+
+  The default `best_value` ranking uses a weighted score between normalized price and normalized duration:
+  - `BEST_VALUE_PRICE_WEIGHT = 0.6`
+  - `BEST_VALUE_DURATION_WEIGHT = 0.4`
+
+  Default formula:
+  `score = (0.6 x normalizedPrice) + (0.4 x normalizedDuration)`
+
+  Short numeric example:
+  - Flight X: normalized price `0.0`, normalized duration `1.0` -> score `0.4`
+  - Flight Y: normalized price `1.0`, normalized duration `0.0` -> score `0.6`
+
+  Lower score ranks higher, so with the default weights Flight X wins because the algorithm is slightly more price-sensitive than duration-sensitive.
 servers:
   - url: http://localhost:8008
     description: Local development server
@@ -42,7 +55,20 @@ paths:
               - price_lowest
               - duration_shortest
               - departure_earliest
-          description: Applies sorting to the flat `flights` list.
+          description: |
+            Applies sorting to the flat `flights` list.
+
+            `best_value` is a weighted score between normalized price and normalized duration.
+            Lower score is better.
+
+            Default formula:
+            `score = (0.6 x normalizedPrice) + (0.4 x normalizedDuration)`
+
+            Meaning of the default weights:
+            - `BEST_VALUE_PRICE_WEIGHT = 0.6`: price contributes 60% of the final score
+            - `BEST_VALUE_DURATION_WEIGHT = 0.4`: duration contributes 40% of the final score
+
+            This default makes the ranking slightly more price-sensitive than duration-sensitive, so a meaningfully cheaper flight can still outrank a somewhat faster one.
         - in: query
           name: min_price
           schema:

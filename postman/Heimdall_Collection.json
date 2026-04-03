@@ -2,7 +2,7 @@
     "info": {
         "_postman_id": "c1f7a0b3-f09d-476a-9b48-ef27976e1a47",
         "name": "Heimdall Flight Aggregator: Core Requirements",
-        "description": "Comprehensive test suite organized by core functional requirements: aggregation, filtering, ranking, and positional multi-trip validation. Formal contract: docs/openapi.yaml. Local viewers after running `make docs-serve`: http://localhost:8081/swagger-ui.html and http://localhost:8081/redoc.html.",
+        "description": "Comprehensive test suite organized by core functional requirements: aggregation, filtering, ranking, and positional multi-trip validation. Formal contract: docs/openapi.yaml. Local viewers after running `make docs-serve`: http://localhost:8081/swagger-ui.html and http://localhost:8081/redoc.html. The `best_value` ranking uses a weighted score between normalized price and normalized duration. Default weights are `BEST_VALUE_PRICE_WEIGHT=0.6` and `BEST_VALUE_DURATION_WEIGHT=0.4`, which makes the ranking slightly more price-sensitive than duration-sensitive.",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
     },
     "item": [
@@ -236,7 +236,7 @@
                                 "search"
                             ]
                         },
-                        "description": "Requirement 3: Compare prices and convenience to rank flights using the Best Value algorithm."
+                        "description": "Requirement 3: Compare prices and convenience to rank flights using the Best Value algorithm. Default score formula: (0.6 x normalized price) + (0.4 x normalized duration). Lower score ranks higher, so the default behavior slightly favors cheaper flights while still considering speed. Short example: if Flight X has normalized price 0.0 and normalized duration 1.0, its score is 0.4; if Flight Y has normalized price 1.0 and normalized duration 0.0, its score is 0.6. In that case Flight X ranks above Flight Y."
                     }
                 },
                 {
